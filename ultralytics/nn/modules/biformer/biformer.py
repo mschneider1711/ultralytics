@@ -124,7 +124,7 @@ class BiFormerCSPBlock(nn.Module):
         self.cv1 = Conv(c1, 2 * self.c, 1, 1)
         self.cv2 = Conv((2 + n) * self.c, c2, 1) 
 
-        self.m = nn.Sequential(*[
+        self.m = nn.ModuleList(*[
             Block(
                 dim=self.c,
                 num_heads=max(1, c_ // 32),
