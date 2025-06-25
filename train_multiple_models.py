@@ -1,16 +1,16 @@
 from ultralytics import YOLO
 import glob
 import os
+import time
 import sys
+import shutil
+from contextlib import redirect_stdout, redirect_stderr
 
-# 🔗 Optional: dein Dataset-Link
-# dataset url: https://universe.roboflow.com/joseph-nelson/plantdoc/dataset/4
-
-# 📁 Konfigurationspfad
+# 📁 Pfad zu deinen benutzerdefinierten YOLOv8-Konfigurationen
 config_path = "./ultralytics/cfg/models/v8_costum"
 configs = glob.glob(f"{config_path}/*.yaml")
 
-# 🔁 Über alle Konfigurationen iterieren
+# 🔁 Alle .yaml-Konfigurationen durchlaufen
 for config in configs:
     if os.path.basename(config) == "yolov8.yaml":
         config = os.path.join(os.path.dirname(config), "yolov8s.yaml")
@@ -18,38 +18,40 @@ for config in configs:
     model_name = os.path.basename(config).replace(".yaml", "")
     print(f"\n🚀 Training model with config: {config}")
 
-    model = YOLO(config)
-
-    # 📁 Pfad zum Output-Ordner (save_dir)
     project = "yolov8s"
     name = model_name
     save_dir = os.path.join(project, name)
     os.makedirs(save_dir, exist_ok=True)
 
-    # 📝 Log-Datei vorbereiten
+    # 📝 Aktuelle YAML-Datei in Ergebnisordner kopieren
+    shutil.copy(config, os.path.join(save_dir, os.path.basename(config)))
+
+    # 🧾 Log-Datei öffnen
     log_file_path = os.path.join(save_dir, "train_output.txt")
     with open(log_file_path, "w") as f:
-        # 🧭 stdout und stderr umleiten
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
-        sys.stdout = sys.stderr = f
+        with redirect_stdout(f), redirect_stderr(f):
+            sys.stdout = f
+            sys.stderr = f
 
-        try:
-            # 🏋️ Training starten
-            model.train(
-                data="/Users/marcschneider/Documents/PlantDoc.v4i.yolov8/data.yaml",
-                epochs=300,
-                batch=16,
-                device="mps",
-                imgsz=640,
-                project=project,
-                name=name,
-                exist_ok=True,
-            )
-        finally:
-            # ↩️ Standardausgabe zurücksetzen
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
+            time.sleep(2)  # Optional: Startverzögerung zur Trennung von vorherigem Log
 
-    print(f"✅ Finished training model with config: {config}")
+            try:
+                # 🧠 Modell laden & trainieren
+                model = YOLO(config)
+                model.train(
+                    data="/Users/marcschneider/Documents/PlantDoc.v4i.yolov8/data.yaml",
+                    epochs=300,
+                    batch=16,
+                    device="mps",
+                    imgsz=640,
+                    project=project,
+                    name=name,
+                    exist_ok=True,
+                )
+            finally:
+                # Standardausgabe wiederherstellen
+                sys.stdout = sys.__stdout__
+                sys.stderr = sys.__stderr__
+
+    print(f"✅ Finished training model: {model_name}")
     print(f"📄 Log saved to: {log_file_path}")
