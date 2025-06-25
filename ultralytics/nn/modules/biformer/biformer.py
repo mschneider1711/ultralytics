@@ -68,6 +68,9 @@ class BiFormerBlock(nn.Module):
         """
         super().__init__()
 
+        # anzahl der layers ausgeben
+        print(f"[DEBUG] BiFormerBlock: {num_layers} layers, c1={c1}, c2={c2}, e={e}")
+
         num_layers = max(1, int(num_layers))  # Stelle sicher, dass immer ≥1 Layer gebaut wird
         c_ = int(c2 * e)                      # Interne Dimension
 
