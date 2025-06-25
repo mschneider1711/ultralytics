@@ -116,13 +116,13 @@ class BiFormerCSPBlock(nn.Module):
         super().__init__()
         c_ = int(c2 * e)  # versteckte Kanäle
 
-        self.c = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
-        self.cv2 = Conv(2 * self.c, c2, 1)  # optional act=FReLU(c2)
+        self.cv1 = Conv(c1, c_, 1, 1)   # Pfad durch BiFormer
+        self.cv2 = Conv(c1, c_, 1, 1)   # Shortcut-Pfad
+        self.cv3 = Conv(2 * c_, c2, 1, 1)  # Fusion
 
         self.m = nn.Sequential(*[
             Block(
-                dim=self.c,
+                dim=c_,
                 num_heads=max(1, c_ // 32),
                 n_win=4,          # Oder adaptiv übergeben
                 topk=4,
@@ -131,9 +131,41 @@ class BiFormerCSPBlock(nn.Module):
         ])
 
     def forward(self, x):
-        """Forward pass through the CSP bottleneck with 2 convolutions."""
-        a, b = self.cv1(x).chunk(2, 1)
-        return self.cv2(torch.cat((self.m(a), b), 1))
+        y1 = self.m(self.cv1(x))
+        y2 = self.cv2(x)
+        return self.cv3(torch.cat((y1, y2), dim=1))
+    
+class BiFormerC2fBlock(nn.Module):
+    """
+    C2f-Variante mit BiFormer-Blöcken (YOLOv8-Stil).
+    -----------------------------------------------
+    c1: Eingangs-Kanäle
+    c2: Ausgangs-Kanäle
+    n : Anzahl BiFormer-Blöcke
+    e : Expansion-Faktor
+    """
+
+    def __init__(self, c1: int, c2: int, n: int = 1, e: float = 0.5):
+        super().__init__()
+        self.c = int(c2 * e)  # interne Kanäle
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)  # erster 1x1 Conv + Split
+        self.cv2 = Conv((2 + n) * self.c, c2, 1, 1)  # Fusion-Conv
+
+        self.m = nn.ModuleList([
+            Block(
+                dim=self.c,
+                num_heads=max(1, self.c // 32),
+                n_win=4,
+                topk=4,
+                auto_pad=True
+            ) for _ in range(n)
+        ])
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        y = list(self.cv1(x).chunk(2, 1))  # Split in zwei Pfade
+        for m in self.m:
+            y.append(m(y[-1]))  # jeweils auf letzten Output anwenden
+        return self.cv2(torch.cat(y, dim=1))  # Fusion
     
 
 class Block(nn.Module):
