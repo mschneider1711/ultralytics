@@ -55,7 +55,7 @@ def get_pe_layer(emb_dim, pe_dim=None, name='none'):
     import torch
 
 class BiFormerBlock(nn.Module):
-    def __init__(self, c1, c2, num_layers=1, e=1.0):
+    def __init__(self, c1, c2, num_layers=1, e=0.5):
         """
         YOLO-kompatibler BiFormerBlock
         ------------------------------
@@ -102,6 +102,39 @@ class BiFormerBlock(nn.Module):
         x = self.m(x)
         x = self.out_proj(x)
         return x
+    
+class BiFormerCSPBlock(nn.Module):
+    """
+    CSP-kompatibler BiFormer-Block (YOLO-Stil)
+    ------------------------------------------
+    c1: Eingangskanäle
+    c2: Ausgangskanäle
+    n:  Anzahl BiFormer-Blöcke
+    e:  Expansion-Faktor für interne Kanäle
+    """
+    def __init__(self, c1, c2, n=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)  # versteckte Kanäle
+
+        self.cv1 = Conv(c1, c_, 1, 1)   # Pfad durch BiFormer
+        self.cv2 = Conv(c1, c_, 1, 1)   # Shortcut-Pfad
+        self.cv3 = Conv(2 * c_, c2, 1, 1)  # Fusion
+
+        self.m = nn.Sequential(*[
+            Block(
+                dim=c_,
+                num_heads=max(1, c_ // 32),
+                n_win=4,          # Oder adaptiv übergeben
+                topk=4,
+                auto_pad=True
+            ) for _ in range(n)
+        ])
+
+    def forward(self, x):
+        y1 = self.m(self.cv1(x))
+        y2 = self.cv2(x)
+        return self.cv3(torch.cat((y1, y2), dim=1))
+
 
 
 
