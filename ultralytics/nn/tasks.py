@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from ultralytics.nn.modules.biformer import BiFormerBlock, BiFormerCSPBlock
+from ultralytics.nn.modules.biformer import BiFormerBlock, BiFormerCSPBlock, BiFormerC2fBlock
 from ultralytics.nn.autobackend import check_class_names
 from ultralytics.nn.modules import (
     AIFI,
@@ -1619,6 +1619,7 @@ def parse_model(d, ch, verbose=True):
             GhostBottleneck,
             BiFormerBlock,
             BiFormerCSPBlock,
+            BiFormerC2fBlock,
             SwinTransformer,
             TransformerBlock,
             GAM,
