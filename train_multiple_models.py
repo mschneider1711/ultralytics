@@ -34,7 +34,7 @@ for config in configs:
     try:
         time.sleep(2)  # Optional: Startverzögerung zur Trennung von vorherigem Output
 
-        # Modell laden & trainieren
+        # Modell laden & trainierenå
         model = YOLO(config)
         model.train(
             data="/Users/marcschneider/Documents/PlantDoc.v4i.yolov8/data.yaml",
