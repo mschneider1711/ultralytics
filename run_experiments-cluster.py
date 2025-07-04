@@ -11,7 +11,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from collections import Counter
 
 # Basispfad zum ursprünglichen Datensatz
-BASE_DIR = Path("/Users/marcschneider/Documents/PlantDoc.v4i.yolov8")
+BASE_DIR = Path("/home/fgerz1/ultralytics/PlantDoc/")
 DATA_YAML_NAME = "data.yaml"
 
 def shuffle_dataset(seed: int, run_id: int):
@@ -104,37 +104,46 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 print("Device:", device)
 
 # Pfad zu YAML-Konfigurationen
-config_path = "/Users/marcschneider/Documents/ultralytics_costum/ultralytics/cfg/models/v8_costum"
+config_path = "/home/fgerz1/ultralytics/ultralytics/cfg/models/v8_costum2/"
 configs = glob.glob(f"{config_path}/*.yaml")
 
 # Run 2 & 3 mit Seeds
-for run_id, seed in zip([2, 3], [123, 321]):
-    run_dir = shuffle_dataset(seed=seed, run_id=run_id)
+# Run 1–3: Run 1 = original, Run 2–3 = geshuffelt
+for run_id, seed in zip([1, 2, 3], [None, 123, 321]):
+    if run_id == 1:
+        run_dir = BASE_DIR  # kein Shuffle, nutze Originaldaten
+        print(f"Verwende ungeshuffelten Originaldatensatz für Run {run_id}: {run_dir}")
+    else:
+        run_dir = shuffle_dataset(seed=seed, run_id=run_id)
+
     data_yaml_path = str(run_dir / DATA_YAML_NAME)
     print(f"Verwende data.yaml aus: {data_yaml_path}")
 
-    # for config in configs:
-    #     model_name = os.path.basename(config).replace(".yaml", "")
-    #     project = "yolov8s_modular_experiments"
-    #     name = f"{model_name}_run{run_id}"
-    #     save_dir = os.path.join(project, name)
-    #     os.makedirs(save_dir, exist_ok=True)
+    for config in configs:
+        batch_size = 16
+        if os.path.basename(config) == "yolov8s_FullC3TR.yaml":
+            batch_size = 8
+        model_name = os.path.basename(config).replace(".yaml", "")
+        project = "yolov8s_modular_experiments_v2"
+        name = f"{model_name}_run{run_id}"
+        save_dir = os.path.join(project, name)
+        os.makedirs(save_dir, exist_ok=True)
 
-    #     shutil.copy(config, os.path.join(save_dir, os.path.basename(config)))
+        shutil.copy(config, os.path.join(save_dir, os.path.basename(config)))
 
-    #     try:
-    #         time.sleep(1)
-    #         model = YOLO(config)
-    #         model.train(
-    #             data=data_yaml_path,
-    #             epochs=300,
-    #             batch=16,
-    #             imgsz=640,
-    #             project=project,
-    #             name=name,
-    #             exist_ok=True,
-    #         )
-    #     except Exception as e:
-    #         print(f"Fehler beim Training {model_name}_run{run_id}: {e}")
+        try:
+            time.sleep(1)
+            model = YOLO(config)
+            model.train(
+                data=data_yaml_path,
+                epochs=300,
+                batch=batch_size,
+                imgsz=640,
+                project=project,
+                name=name,
+                exist_ok=True,
+            )
+        except Exception as e:
+            print(f"Fehler beim Training {model_name}_run{run_id}: {e}")
 
-    #     print(f"✅ Training abgeschlossen: {model_name}_run{run_id}")
+        print(f"✅ Training abgeschlossen: {model_name}_run{run_id}")

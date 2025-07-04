@@ -6,10 +6,10 @@ import numpy as np
 # === Alle Datasets definieren ===
 dataset_paths = {
     "run1": Path("/Users/marcschneider/Documents/PlantDoc.v4i.yolov8"),
-    # "run2": Path("/Users/marcschneider/Documents/PlantDoc.v4i.yolov8_run2"),
-    # "run3": Path("/Users/marcschneider/Documents/PlantDoc.v4i.yolov8_run3"),
+    "run2": Path("/Users/marcschneider/Documents/PlantDoc.v4i.yolov8_run2"),
+    "run3": Path("/Users/marcschneider/Documents/PlantDoc.v4i.yolov8_run3"),
 }
-splits = ["train", "valid", "test"]  # oder auch ["train", "valid", "test"]
+splits = ["train"]  # oder auch ["train", "valid", "test"]
 
 # === Klassenlabels (für X-Achse)
 class_names = [

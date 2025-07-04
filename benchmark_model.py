@@ -1,9 +1,9 @@
 from ultralytics.utils.benchmarks import benchmark
 from ultralytics import YOLO
 
-model_path = r"/Users/marcschneider/Desktop/MasterArbeit_Experimente/yolov8s_modular_experiments/yolov8s_modular_experiments/yolov8_P2P3C3TR/weights/best.pt"
-data_path = r"/Users/marcschneider/Documents/PlantDoc.v4i.yolov8/data.yaml"
-device = "mps" 
+model_path = r"/Users/marcschneider/Desktop/MasterArbeit_Experimente/yolov8s_modular_experiments/yolov8s_modular_experiments/run2/yolov8_P2SwinTrafoCSP_run2/weights/best.pt"
+data_path = r"/Users/marcschneider/Documents/PlantDoc.v4i.yolov8_run2/data.yaml"
+device = "cpu" 
 
 # Benchmark on GPU
 #benchmark(model=model_path, data=data_path, imgsz=640, half=False, device=device)
@@ -14,9 +14,8 @@ model = YOLO(model_path)
 # Validierung durchführen
 results = model.val(
     data=data_path,
-    split="test",
+    split="val",
     imgsz=640,
-    batch=16,
     device=device  # oder z.B. 0 für GPU
 )
 
