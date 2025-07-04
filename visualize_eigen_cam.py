@@ -106,7 +106,7 @@ def get_eigencam_overlay(model_path, layer_indices):
     return overlays
 
 # === Visualisieren
-layer_indices = [4, 6, 9]  # P3, P4, P5
+layer_indices = [15, 18, 21]  # P3, P4, P5
 eigencam_A = get_eigencam_overlay(model_path_A, layer_indices)
 eigencam_B = get_eigencam_overlay(model_path_B, layer_indices)
 

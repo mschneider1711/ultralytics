@@ -11,7 +11,7 @@ from ultralytics.utils.plotting import colors  # <- YOLO-Farbpalette
 # === Modellpfade ===
 model_path_A = "/Users/marcschneider/Desktop/MasterArbeit_Experimente/yolov8s_modular_experiments/yolov8s_modular_experiments/run2/yolov8_run2/weights/best.pt"
 model_path_B = "/Users/marcschneider/Desktop/MasterArbeit_Experimente/yolov8s_modular_experiments/yolov8s_modular_experiments/run2/yolov8_P3SwinTrafoCSP_run2/weights/best.pt"
-image_path = "/Users/marcschneider/Documents/PlantDoc.v4i.yolov8/test/images/1421_0_jpeg-itok-FMtmgePj_jpg.rf.35c94fb07dfa06f99be3c650a03c36b5.jpg"
+image_path = "/Users/marcschneider/Documents/PlantDoc.v4i.yolov8/test/images/B2750109-Late_blight_on_a_potato_plant-SPL_jpg.rf.2ee7b2fe0b7703591b646332c6904cda.jpg"
 label_path = image_path.replace("/images/", "/labels/").replace(".jpg", ".txt")
 
 # === Labels (optional)
@@ -78,7 +78,7 @@ def get_feature_maps(model_path):
     def hook_fn(module, input, output):
         feature_maps.append(output)
 
-    hooks = [layers[i].register_forward_hook(hook_fn) for i in [6, 8, 9]]
+    hooks = [layers[i].register_forward_hook(hook_fn) for i in [4, 6, 9]]
     _ = model.model(img_tensor)
     for h in hooks: h.remove()
 
@@ -87,7 +87,7 @@ def get_feature_maps(model_path):
 # === Overlay erzeugen: Mittelwert über Kanäle
 def create_overlay(fmap):
     fmap = fmap.squeeze(0)  # [C, H, W]
-    fmap_mean = fmap.mean(dim=0).detach().cpu().numpy()  # [H, W]
+    fmap_mean = fmap.sum(dim=0).detach().cpu().numpy()  # [H, W]
 
     # Normalisieren
     fmap_norm = (fmap_mean - fmap_mean.min()) / (fmap_mean.max() - fmap_mean.min() + 1e-6)

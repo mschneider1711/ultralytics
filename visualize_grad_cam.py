@@ -45,7 +45,7 @@ def draw_predictions(model_path, img_path):
     return cv2.cvtColor(pred_img, cv2.COLOR_BGR2RGB)
 
 # Layer-Indizes für Grad-CAM
-layer_indices = [4, 6, 9]
+layer_indices = [5, 6, 7]
 
 # Funktion um Grad-CAM Bilder für alle Layer eines Modells zu erzeugen
 def generate_gradcam_images(model_path):
@@ -54,7 +54,7 @@ def generate_gradcam_images(model_path):
         heatmap_model = yolov8_heatmap(
             weight=model_path,
             conf_threshold=0.5,
-            method="GradCAM",
+            method="EigenGradCAM",
             layer=[layer_idx],  # nur einen Layer pro Instanz
             ratio=0.02,
             show_box=True,
