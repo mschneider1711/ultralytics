@@ -18,6 +18,7 @@ Examples:
 """
 from ultralytics.nn.modules.biformer import BiFormerBlock, BiFormerCSPBlock, BiFormerC2fBlock
 from .SwinTransformer import SwinTransformer
+from .PVT2 import C3PVT2
 from .GAM import GAM
 from .block import (
     C1,
@@ -109,6 +110,7 @@ __all__ = (
     "BiFormerBlock",
     "BiFormerCSPBlock",
     "BiFormerC2fBlock",
+    "C3PVT2",
     "Conv",
     "Conv2",
     "LightConv",
