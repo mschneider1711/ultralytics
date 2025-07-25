@@ -54,7 +54,6 @@ class BiFormerBackbone(nn.Module):
         self.input_size = input_size
 
         if weight:
-            print(f"[INFO] Loading pretrained weights from {weight}")
             state_dict = torch.load(weight, map_location="cpu")
             if "model" in state_dict:
                 state_dict = state_dict["model"]
@@ -62,10 +61,8 @@ class BiFormerBackbone(nn.Module):
             missing_keys, unexpected_keys = self.backbone.load_state_dict(state_dict, strict=False)
             total_keys = len(state_dict)
             loaded_keys = total_keys - len(unexpected_keys)
-            print(f"[INFO] ✅ Pretrained weights loaded: {loaded_keys}/{total_keys} params ({(loaded_keys / total_keys)*100:.1f}%)")
 
             if missing_keys:
-                print(f"[WARNING] 🔸 Missing keys ({len(missing_keys)}):")
                 for k in missing_keys:
                     print(f"   - {k}")
             else:
@@ -79,7 +76,6 @@ class BiFormerBackbone(nn.Module):
 
     def forward(self, x):
         if x.shape[2:] != (self.input_size, self.input_size):
-            print(f"[DEBUG] Input shape before padding: {x.shape}")
             imgs = []
             for xi in x:
                 xi_np = xi.permute(1, 2, 0).cpu().numpy()
@@ -87,7 +83,6 @@ class BiFormerBackbone(nn.Module):
                 padded_img = torch.from_numpy(padded_img).permute(2, 0, 1).to(x.device).float() / 255.0
                 imgs.append(padded_img)
             x = torch.stack(imgs)
-            print(f"[DEBUG] Input shape after padding: {x.shape}")
 
         features = []
         for i in range(len(self.backbone.downsample_layers)):
