@@ -710,4 +710,6 @@ class Index(nn.Module):
         Returns:
             (torch.Tensor): Selected tensor.
         """
-        return x[self.index]
+        out = x[self.index]
+        return out
+

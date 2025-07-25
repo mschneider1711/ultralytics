@@ -1,5 +1,7 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
+from ultralytics.nn.modules.biformer.biformer_backbone import BiFormerBackbone
+
 from .tasks import (
     BaseModel,
     ClassificationModel,
