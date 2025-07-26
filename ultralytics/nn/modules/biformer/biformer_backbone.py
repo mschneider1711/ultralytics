@@ -13,6 +13,7 @@ BI_FORMER_VARIANTS = {
 
 def letterbox(image, new_shape=(640, 640), color=(114, 114, 114), auto=False, scaleFill=False, scaleup=True, stride=32):
     shape = image.shape[:2]  # current shape [height, width]
+
     if isinstance(new_shape, int):
         new_shape = (new_shape, new_shape)
 
@@ -26,7 +27,7 @@ def letterbox(image, new_shape=(640, 640), color=(114, 114, 114), auto=False, sc
     new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
     dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # width, height padding
 
-    if auto:  # minimum rectangle
+    if auto:
         dw, dh = np.mod(dw, stride), np.mod(dh, stride)
     elif scaleFill:
         dw, dh = 0.0, 0.0
@@ -37,6 +38,8 @@ def letterbox(image, new_shape=(640, 640), color=(114, 114, 114), auto=False, sc
     dh /= 2
 
     if shape[::-1] != new_unpad:
+        if new_unpad[0] <= 0 or new_unpad[1] <= 0:
+            raise ValueError(f"[ERROR] Invalid new_unpad size: {new_unpad}")
         image = cv2.resize(image, new_unpad, interpolation=cv2.INTER_LINEAR)
 
     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
@@ -44,6 +47,7 @@ def letterbox(image, new_shape=(640, 640), color=(114, 114, 114), auto=False, sc
     image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
 
     return image, ratio, (dw, dh)
+
 
 
 class BiFormerBackbone(nn.Module):

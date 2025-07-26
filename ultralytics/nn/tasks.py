@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 
 from ultralytics.nn.modules.biformer.biformer_backbone import BiFormerBackbone
+from ultralytics.nn.modules.swintransformer_v2 import SwinTransformerV2
 
 from ultralytics.nn.modules.biformer import BiFormerBlock, BiFormerCSPBlock, BiFormerC2fBlock
 from ultralytics.nn.autobackend import check_class_names
@@ -409,9 +410,11 @@ class DetectionModel(BaseModel):
         # Build strides
         m = self.model[-1]  # Detect()
         if isinstance(m, Detect):  # includes all Detect subclasses like Segment, Pose, OBB, YOLOEDetect, YOLOESegment
-            s = 256  # 2x min stride
+            # adjust stride to 640 because of swin trafo, which needs fixed input size
+            s = 640  # 2x min stride
             m.inplace = self.inplace
 
+ 
             def _forward(x):
                 """Perform a forward pass through the model, handling different Detect subclass types accordingly."""
                 if self.end2end:
