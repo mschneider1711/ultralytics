@@ -13,30 +13,6 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 import numpy as np
 from timm.models import register_model
 
-# letterbox function for resizing images while maintaining aspect ratio, used for validation and inference
-def letterbox_tensor(image, new_shape=(640, 640), color=(114, 114, 114)):
-    # image: (B, C, H, W)
-    B, C, H, W = image.shape
-    new_h, new_w = new_shape
-
-    scale = min(new_w / W, new_h / H)
-    resized_h, resized_w = int(round(H * scale)), int(round(W * scale))
-
-    # Resize mit Seitenverhältnis
-    resized = F.interpolate(image, size=(resized_h, resized_w), mode='bilinear', align_corners=False)
-
-    # Pad mit Farbe
-    pad_top = (new_h - resized_h) // 2
-    pad_bottom = new_h - resized_h - pad_top
-    pad_left = (new_w - resized_w) // 2
-    pad_right = new_w - resized_w - pad_left
-
-    padded = F.pad(resized, (pad_left, pad_right, pad_top, pad_bottom), value=color[0])  # nur Grauton
-
-    return padded
-
-
-
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
         super().__init__()

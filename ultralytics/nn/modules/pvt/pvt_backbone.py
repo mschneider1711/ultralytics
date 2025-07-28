@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import cv2
 import torch.hub
@@ -30,38 +31,25 @@ PVT_VARIANTS = {
     "pvt_v2_b5": pvt_v2_b5,
 }
 
+def letterbox_tensor(image, new_shape=(640, 640), color=(114, 114, 114)):
+    # image: (B, C, H, W)
+    B, C, H, W = image.shape
+    new_h, new_w = new_shape
 
-def letterbox(image, new_shape=(640, 640), color=(114, 114, 114), auto=False, scaleFill=False, scaleup=True, stride=32):
-    shape = image.shape[:2]  # current shape [height, width]
-    if isinstance(new_shape, int):
-        new_shape = (new_shape, new_shape)
+    scale = min(new_w / W, new_h / H)
+    resized_h, resized_w = int(round(H * scale)), int(round(W * scale))
 
-    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
-    if not scaleup:
-        r = min(r, 1.0)
+    # Resize
+    image = F.interpolate(image, size=(resized_h, resized_w), mode='bilinear', align_corners=False)
 
-    ratio = r, r
-    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
-    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]
+    # Padding
+    pad_top = (new_h - resized_h) // 2
+    pad_bottom = new_h - resized_h - pad_top
+    pad_left = (new_w - resized_w) // 2
+    pad_right = new_w - resized_w - pad_left
 
-    if auto:
-        dw, dh = np.mod(dw, stride), np.mod(dh, stride)
-    elif scaleFill:
-        dw, dh = 0.0, 0.0
-        new_unpad = new_shape
-        ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]
-
-    dw /= 2
-    dh /= 2
-
-    if shape[::-1] != new_unpad:
-        image = cv2.resize(image, new_unpad, interpolation=cv2.INTER_LINEAR)
-
-    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
-    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-    image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
-    return image, ratio, (dw, dh)
-
+    image = F.pad(image, (pad_left, pad_right, pad_top, pad_bottom), value=color[0])
+    return image
 
 class PyramidVisionTransformerV2(nn.Module):
     def __init__(self, variant="pvt_v2_b2_li", pretrained=False, input_size=640):
@@ -128,13 +116,7 @@ class PyramidVisionTransformerV2(nn.Module):
 
     def forward(self, x):
         if x.shape[2:] != (self.input_size, self.input_size):
-            imgs = []
-            for xi in x:
-                xi_np = xi.permute(1, 2, 0).cpu().numpy()
-                padded_img = letterbox(xi_np, new_shape=self.input_size, auto=False)[0]
-                padded_img = torch.from_numpy(padded_img).permute(2, 0, 1).to(x.device).float() / 255.0
-                imgs.append(padded_img)
-            x = torch.stack(imgs)
+            x = letterbox_tensor(x, new_shape=(self.input_size, self.input_size))
 
         features = self.backbone.forward_features(x)
         return features  # P3, P4, P5
