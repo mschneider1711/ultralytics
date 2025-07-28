@@ -103,7 +103,9 @@ class SwinTransformerV2(nn.Module):
                 print(f"  - {k}")
 
     def forward(self, x):
+        print("HALLO")
         if x.shape[2:] != (self.input_size, self.input_size):
+            print("ANPASSEN")
             x = letterbox_tensor(x, new_shape=(self.input_size, self.input_size))
 
 
