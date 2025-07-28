@@ -98,6 +98,7 @@ class BiFormer(nn.Module):
 
     def forward(self, x):
         if x.shape[2:] != (self.input_size, self.input_size):
+            print("applying letter box within backbone")
             x = letterbox_tensor(x, new_shape=(self.input_size, self.input_size))
 
         features = []

@@ -115,10 +115,6 @@ class PyramidVisionTransformerV2(nn.Module):
             
 
     def forward(self, x):
-        # if x.shape[2:] != (self.input_size, self.input_size):
-        #     print("ANPASSEN")
-        #     x = letterbox_tensor(x, new_shape=(self.input_size, self.input_size))
-
         features = self.backbone.forward_features(x)
         return features  # P3, P4, P5
 

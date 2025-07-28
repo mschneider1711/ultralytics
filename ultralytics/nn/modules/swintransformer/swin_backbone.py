@@ -6,6 +6,8 @@ import cv2
 from .SwinTransformerV2 import swinv2_tiny, swinv2_small, swinv2_base
 import os
 import torch.hub
+import matplotlib.pyplot as plt
+import torchvision.transforms.functional as F2
 
 SWIN_VARIANTS = {
     "swin_tiny": swinv2_tiny,
@@ -101,17 +103,16 @@ class SwinTransformerV2(nn.Module):
             print("\n[DETAIL] 🔍 Unexpected keys in checkpoint:")
             for k in unexpected_keys:
                 print(f"  - {k}")
-
+    
     def forward(self, x):
-        print("HALLO")
         if x.shape[2:] != (self.input_size, self.input_size):
-            print("ANPASSEN")
+            print("applying letter box within backbone")
             x = letterbox_tensor(x, new_shape=(self.input_size, self.input_size))
-
 
         features = self.backbone.forward_features(x)
 
         return features
+
 
     @property
     def out_channels(self):

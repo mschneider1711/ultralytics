@@ -252,7 +252,13 @@ class SwinTransformerBlock(nn.Module):
 
         #assert L == H * W, "input feature has wrong size"
 
-        x = x.reshape(B, H, W, C)
+        # ✅ so sollte es sein:
+        B, L, C = x.shape
+        H = W = int(L ** 0.5)
+        assert H * W == L, f"Cannot infer square shape from {L}"
+        x = x.view(B, H, W, C)
+
+        #x = x.reshape(B, H, W, C)
 
         # Pad Input Feature Map, falls nötig (für späteres Partitionieren)
         pad_r = (self.window_size - W % self.window_size) % self.window_size
@@ -370,6 +376,11 @@ class PatchMerging(nn.Module):
         assert H % 2 == 0 and W % 2 == 0, f"x size ({H}*{W}) are not even."
 
         x = x.reshape(B, H, W, C)
+
+        # padding
+        pad_input = (H % 2 == 1) or (W % 2 == 1)
+        if pad_input:
+            x = F.pad(x, (0, 0, 0, W % 2, 0, H % 2))
 
         x0 = x[:, 0::2, 0::2, :]  # B H/2 W/2 C
         x1 = x[:, 1::2, 0::2, :]  # B H/2 W/2 C
@@ -516,6 +527,14 @@ class PatchEmbed(nn.Module):
         # BECAUSE OF PADDING, WE DONT NEED TO CHECK FOR EVEN SIZE
         #assert H == self.img_size[0] and W == self.img_size[1], \
         #    f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
+
+        # padding
+        _, _, H, W = x.size()
+        if W % self.patch_size[1] != 0:
+            x = F.pad(x, (0, self.patch_size[1] - W % self.patch_size[1]))
+        if H % self.patch_size[0] != 0:
+            x = F.pad(x, (0, 0, 0, self.patch_size[0] - H % self.patch_size[0]))
+
         x = self.proj(x).flatten(2).transpose(1, 2)  # B Ph*Pw C
         if self.norm is not None:
             x = self.norm(x)
@@ -659,8 +678,6 @@ class SwinTransformerV2(nn.Module):
         out = self.forward_features(x)
         return out
 
-
-
     def flops(self):
         flops = 0
         flops += self.patch_embed.flops()
@@ -680,7 +697,7 @@ def swinv2_tiny(pretrained=False, **kwargs):
         embed_dim=96,
         depths=[2, 2, 6, 2],
         num_heads=[3, 6, 12, 24],
-        window_size=8,
+        window_size=8, 
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
         **kwargs
