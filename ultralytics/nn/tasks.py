@@ -10,8 +10,9 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from ultralytics.nn.modules.biformer.biformer_backbone import BiFormerBackbone
-from ultralytics.nn.modules.swintransformer_v2 import SwinTransformerV2
+from ultralytics.nn.modules.biformer.biformer_backbone import BiFormer
+from ultralytics.nn.modules.swintransformer.swin_backbone import SwinTransformerV2
+from ultralytics.nn.modules.pvt.pvt_backbone import PyramidVisionTransformerV2
 
 from ultralytics.nn.modules.biformer import BiFormerBlock, BiFormerCSPBlock, BiFormerC2fBlock
 from ultralytics.nn.autobackend import check_class_names

@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 import numpy as np
+from timm.models import register_model
 
 # letterbox function for resizing images while maintaining aspect ratio, used for validation and inference
 def letterbox_tensor(image, new_shape=(640, 640), color=(114, 114, 114)):
@@ -65,8 +66,8 @@ def window_partition(x, window_size):
         windows: (num_windows*B, window_size, window_size, C)
     """
     B, H, W, C = x.shape
-    x = x.view(B, H // window_size, window_size, W // window_size, window_size, C)
-    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
+    x = x.reshape(B, H // window_size, window_size, W // window_size, window_size, C)
+    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().reshape(-1, window_size, window_size, C)
     return windows
 
 
@@ -82,8 +83,8 @@ def window_reverse(windows, window_size, H, W):
         x: (B, H, W, C)
     """
     B = int(windows.shape[0] / (H * W / window_size / window_size))
-    x = windows.view(B, H // window_size, W // window_size, window_size, window_size, -1)
-    x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, H, W, -1)
+    x = windows.reshape(B, H // window_size, W // window_size, window_size, window_size, -1)
+    x = x.permute(0, 1, 3, 2, 4, 5).contiguous().reshape(B, H, W, -1)
     return x
 
 
@@ -176,11 +177,13 @@ class WindowAttention(nn.Module):
 
         # cosine attention
         attn = (F.normalize(q, dim=-1) @ F.normalize(k, dim=-1).transpose(-2, -1))
-        logit_scale = torch.clamp(self.logit_scale, max=torch.log(torch.tensor(1. / 0.01))).exp()
+        #logit_scale = torch.clamp(self.logit_scale, max=torch.log(torch.tensor(1. / 0.01))).exp()
+        max_log = torch.log(torch.tensor(1. / 0.01, device=self.logit_scale.device))
+        logit_scale = torch.clamp(self.logit_scale, max=max_log).exp()
         attn = attn * logit_scale
 
-        relative_position_bias_table = self.cpb_mlp(self.relative_coords_table).view(-1, self.num_heads)
-        relative_position_bias = relative_position_bias_table[self.relative_position_index.view(-1)].view(
+        relative_position_bias_table = self.cpb_mlp(self.relative_coords_table).reshape(-1, self.num_heads)
+        relative_position_bias = relative_position_bias_table[self.relative_position_index.reshape(-1)].reshape(
             self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)  # Wh*Ww,Wh*Ww,nH
         relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
         relative_position_bias = 16 * torch.sigmoid(relative_position_bias)
@@ -188,8 +191,8 @@ class WindowAttention(nn.Module):
 
         if mask is not None:
             nW = mask.shape[0]
-            attn = attn.view(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
-            attn = attn.view(-1, self.num_heads, N, N)
+            attn = attn.reshape(B_ // nW, nW, self.num_heads, N, N) + mask.to(attn.device).unsqueeze(1).unsqueeze(0)
+            attn = attn.reshape(-1, self.num_heads, N, N)
             attn = self.softmax(attn)
         else:
             attn = self.softmax(attn)
@@ -273,12 +276,12 @@ class SwinTransformerBlock(nn.Module):
 
         #assert L == H * W, "input feature has wrong size"
 
-        x = x.view(B, H, W, C)
+        x = x.reshape(B, H, W, C)
 
         # Pad Input Feature Map, falls nötig (für späteres Partitionieren)
         pad_r = (self.window_size - W % self.window_size) % self.window_size
         pad_b = (self.window_size - H % self.window_size) % self.window_size
-        x = x.view(B, H, W, C)
+        x = x.reshape(B, H, W, C)
         x = F.pad(x, (0, 0, 0, pad_r, 0, pad_b))  # Pad (left, right, top, bottom) along H/W
 
         Hp, Wp = x.shape[1], x.shape[2]  # Neue gepaddete Größe
@@ -303,7 +306,7 @@ class SwinTransformerBlock(nn.Module):
                     cnt += 1
 
             mask_windows = window_partition(img_mask, self.window_size)  # nW, window_size, window_size, 1
-            mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
+            mask_windows = mask_windows.reshape(-1, self.window_size * self.window_size)
             attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
             attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
         else:
@@ -317,13 +320,13 @@ class SwinTransformerBlock(nn.Module):
 
         # partition windows
         x_windows = window_partition(shifted_x, self.window_size)  # nW*B, window_size, window_size, C
-        x_windows = x_windows.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
+        x_windows = x_windows.reshape(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
 
         # W-MSA/SW-MSA
         attn_windows = self.attn(x_windows, mask=attn_mask)  # nW*B, window_size*window_size, C
 
         # merge windows
-        attn_windows = attn_windows.view(-1, self.window_size, self.window_size, C)
+        attn_windows = attn_windows.reshape(-1, self.window_size, self.window_size, C)
         shifted_x = window_reverse(attn_windows, self.window_size, Hp, Wp)  # B H' W' C
 
         # reverse cyclic shift
@@ -337,8 +340,8 @@ class SwinTransformerBlock(nn.Module):
             x = x[:, :H, :W, :].contiguous()
 
         # Residual connection (PreNorm-Style optional)
-        x = x.view(B, H * W, C)
-        shortcut = shortcut.view(B, H * W, C)
+        x = x.reshape(B, H * W, C)
+        shortcut = shortcut.reshape(B, H * W, C)
         x = shortcut + self.drop_path(self.norm1(x))
 
         # MLP
@@ -390,14 +393,14 @@ class PatchMerging(nn.Module):
         assert L == H * W, "input feature has wrong size"
         assert H % 2 == 0 and W % 2 == 0, f"x size ({H}*{W}) are not even."
 
-        x = x.view(B, H, W, C)
+        x = x.reshape(B, H, W, C)
 
         x0 = x[:, 0::2, 0::2, :]  # B H/2 W/2 C
         x1 = x[:, 1::2, 0::2, :]  # B H/2 W/2 C
         x2 = x[:, 0::2, 1::2, :]  # B H/2 W/2 C
         x3 = x[:, 1::2, 1::2, :]  # B H/2 W/2 C
         x = torch.cat([x0, x1, x2, x3], -1)  # B H/2 W/2 4*C
-        x = x.view(B, -1, 4 * C)  # B H/2*W/2 4*C
+        x = x.reshape(B, -1, 4 * C)  # B H/2*W/2 4*C
 
         x = self.reduction(x)
         x = self.norm(x)
@@ -657,12 +660,6 @@ class SwinTransformerV2(nn.Module):
     def forward_features(self, x):
         B, C, H, W = x.shape
 
-        # if shape is not 640x640, resize to 640x640 using letterbox, used for validation and inference
-        if x.shape[-1] != 640 or x.shape[-2] != 640:
-            x = letterbox_tensor(x, new_shape=(640, 640))
-            B, C, H, W = x.shape
-
-
         x = self.patch_embed(x)  # output: (B, L, C)
         hw_shape = (H // self.patch_embed.patch_size[0], W // self.patch_embed.patch_size[1])
 
@@ -683,7 +680,9 @@ class SwinTransformerV2(nn.Module):
         return features
 
     def forward(self, x):
-        return self.forward_features(x)
+        out = self.forward_features(x)
+        return out
+
 
 
     def flops(self):
@@ -694,3 +693,49 @@ class SwinTransformerV2(nn.Module):
         flops += self.num_features * self.patches_resolution[0] * self.patches_resolution[1] // (2 ** self.num_layers)
         flops += self.num_features * self.num_classes
         return flops
+    
+from functools import partial
+from timm.models.registry import register_model
+import torch.nn as nn
+
+@register_model
+def swinv2_tiny(pretrained=False, **kwargs):
+    model = SwinTransformerV2(
+        embed_dim=96,
+        depths=[2, 2, 6, 2],
+        num_heads=[3, 6, 12, 24],
+        window_size=8,
+        qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
+    return model
+
+
+@register_model
+def swinv2_small(pretrained=False, **kwargs):
+    model = SwinTransformerV2(
+        embed_dim=96,
+        depths=[2, 2, 18, 2],
+        num_heads=[3, 6, 12, 24],
+        window_size=8,
+        qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
+    return model
+
+
+@register_model
+def swinv2_base(pretrained=False, **kwargs):
+    model = SwinTransformerV2(
+        embed_dim=128,
+        depths=[2, 2, 18, 2],
+        num_heads=[4, 8, 16, 32],
+        window_size=8,
+        qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs
+    )
+    return model
+

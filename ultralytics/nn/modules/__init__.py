@@ -18,8 +18,8 @@ Examples:
 """
 from ultralytics.nn.modules.biformer import BiFormerBlock, BiFormerCSPBlock, BiFormerC2fBlock
 from .SwinTransformer import SwinTransformer
-from .swintransformer_v2 import SwinTransformerV2
-from .biformer.biformer_backbone import BiFormerBackbone
+from .swintransformer.SwinTransformerV2 import SwinTransformerV2
+from .biformer.biformer_backbone import BiFormer
 from .PVT2 import C3PVT2
 from .GAM import GAM
 from .block import (
