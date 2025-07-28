@@ -413,7 +413,7 @@ class BiFormer(nn.Module):
 
 
 model_urls = {
-    "biformer_tiny_in1k": "https://api.onedrive.com/v1.0/shares/s!AkBbczdRlZvChHEOoGkgwgQzEDlM/root/content",
+    "biformer_tiny_in1k": "https://1drv.ms/u/c/C29B955137735B40/AUBbczdRlZsggMJxAgAAAAA?e=IbueIb",
     "biformer_small_in1k": "https://api.onedrive.com/v1.0/shares/s!AkBbczdRlZvChHDyM-x9KWRBZ832/root/content",
     "biformer_base_in1k": "https://api.onedrive.com/v1.0/shares/s!AkBbczdRlZvChHI_XPhoadjaNxtO/root/content",
 }

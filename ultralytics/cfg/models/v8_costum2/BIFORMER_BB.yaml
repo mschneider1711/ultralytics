@@ -9,7 +9,7 @@ scales: # model compound scaling constants, i.e. 'model=yolov8n.yaml' will call 
 
 # BiFormer Backbone
 backbone:
-  - [-1, 1, BiFormer, ["biformer_small"]]     # Output: [128, 256, 512]
+  - [-1, 1, BiFormer, ['biformer_tiny', '"/Users/marcschneider/Documents/biformer_tiny_best.pth"']]
   - [0, 1, Index, [128, 0]]  # P3
   - [0, 1, Index, [256, 1]]  # P4
   - [0, 1, Index, [512, 2]]  # P5
