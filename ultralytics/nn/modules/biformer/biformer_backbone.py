@@ -41,11 +41,10 @@ def letterbox_tensor(image, new_shape=(640, 640), color=(114, 114, 114)):
     return image
 
 class BiFormer(nn.Module):
-    def __init__(self, variant="biformer_tiny", pretrained=None, input_size=640):
+    def __init__(self, variant="biformer_tiny", pretrained=None):
         super().__init__()
         assert variant in BI_FORMER_VARIANTS, f"Unknown BiFormer variant: {variant}"
         self.backbone = BI_FORMER_VARIANTS[variant](pretrained=None)
-        self.input_size = input_size
         if pretrained:
             self.load_biformer_weights_from_file(self.backbone, variant)
 

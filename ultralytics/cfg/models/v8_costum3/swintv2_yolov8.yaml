@@ -1,7 +1,7 @@
 # SwinV2 + YOLOv8 Full Neck & Head
 
 # Anzahl Klassen
-nc: 30
+nc: 27
 
 scales:
   s: [0.33, 0.50, 1024]
