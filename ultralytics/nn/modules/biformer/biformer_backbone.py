@@ -14,10 +14,10 @@ BI_FORMER_VARIANTS = {
 }
 
 BIFORMER_PRETRAINED_URLS = {
-    "biformer_tiny": "/Users/marcschneider/Documents/biformer_tiny_best.pth",
-    "biformer_small": "/Users/marcschneider/Documents/biformer_small_best.pth",
-    "biformer_base": "/Users/marcschneider/Documents/biformer_base_best.pth",
-    "biformer_stl": "/Users/marcschneider/Documents/biformer_stl_best.pth",
+    "biformer_tiny": "biformer_weights/biformer_tiny_best.pth",
+    "biformer_small": "biformer_weights/biformer_small_best.pth",
+    "biformer_base": "biformer_weights/biformer_base_best.pth",
+    "biformer_stl": "biformer_weights/biformer_stl_best.pth",
 }
 
 def letterbox_tensor(image, new_shape=(640, 640), color=(114, 114, 114)):
