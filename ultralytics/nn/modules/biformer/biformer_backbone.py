@@ -3,15 +3,22 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 import cv2
-from .biformer import biformer_tiny, biformer_small, biformer_base
+from .biformer import biformer_tiny, biformer_small, biformer_base, biformer_stl
 import os
 
 BI_FORMER_VARIANTS = {
     "biformer_tiny": biformer_tiny,
     "biformer_small": biformer_small,
     "biformer_base": biformer_base,
+    "biformer_stl": biformer_stl,
 }
 
+BIFORMER_PRETRAINED_URLS = {
+    "biformer_tiny": "/Users/marcschneider/Documents/biformer_tiny_best.pth",
+    "biformer_small": "/Users/marcschneider/Documents/biformer_small_best.pth",
+    "biformer_base": "/Users/marcschneider/Documents/biformer_base_best.pth",
+    "biformer_stl": "/Users/marcschneider/Documents/biformer_stl_best.pth",
+}
 
 def letterbox_tensor(image, new_shape=(640, 640), color=(114, 114, 114)):
     # image: (B, C, H, W)
@@ -39,15 +46,15 @@ class BiFormer(nn.Module):
         assert variant in BI_FORMER_VARIANTS, f"Unknown BiFormer variant: {variant}"
         self.backbone = BI_FORMER_VARIANTS[variant](pretrained=None)
         self.input_size = input_size
-
         if pretrained:
-            self.load_biformer_weights_from_file(pretrained)
+            self.load_biformer_weights_from_file(self.backbone, variant)
 
-    def load_biformer_weights_from_file(self, weight_path, verbose=True):
-        assert os.path.isfile(weight_path), f"[ERROR] File not found: {weight_path}"
+    def load_biformer_weights_from_file(self, backbone, variant, verbose=True):
+        assert variant in BIFORMER_PRETRAINED_URLS, f"No URL found for {variant}"
+        url = BIFORMER_PRETRAINED_URLS[variant]
 
         if verbose:
-            print(f"[INFO] 📂 Loading pretrained weights from local file: {weight_path}")
+            print(f"[INFO] 📂 Loading pretrained weights from local file: {url}")
 
         # 1️⃣ Parameter vor dem Laden (erste 5)
         named_params = list(self.backbone.named_parameters())
@@ -59,7 +66,7 @@ class BiFormer(nn.Module):
             tracked_params.append((name, param.clone(), mean, std))
 
         # 2️⃣ Lokales Checkpoint laden
-        checkpoint = torch.load(weight_path, map_location="cpu")
+        checkpoint = torch.load(url, map_location="cpu")
 
         # Extrahiere ggf. state_dict
         if "model" in checkpoint:
@@ -97,16 +104,12 @@ class BiFormer(nn.Module):
 
 
     def forward(self, x):
-        if x.shape[2:] != (self.input_size, self.input_size):
-            print("applying letter box within backbone")
-            x = letterbox_tensor(x, new_shape=(self.input_size, self.input_size))
-
         features = []
         for i in range(len(self.backbone.downsample_layers)):
             x = self.backbone.downsample_layers[i](x)
             x = self.backbone.stages[i](x)
-            if i >= 1:  # Only use last 3 stages (P3, P4, P5)
-                features.append(x)
+            features.append(x)
+            
         return features
 
     @property

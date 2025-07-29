@@ -118,7 +118,7 @@ class BiLevelRoutingAttention(nn.Module):
     def __init__(self, dim, num_heads=8, n_win=7, qk_dim=None, qk_scale=None,
                  kv_per_win=4, kv_downsample_ratio=4, kv_downsample_kernel=None, kv_downsample_mode='identity',
                  topk=4, param_attention="qkvo", param_routing=False, diff_routing=False, soft_routing=False, side_dwconv=3,
-                 auto_pad=False):
+                 auto_pad=True):
         super().__init__()
         # local attention setting
         self.dim = dim
@@ -198,7 +198,7 @@ class BiLevelRoutingAttention(nn.Module):
         # softmax for local attention
         self.attn_act = nn.Softmax(dim=-1)
 
-        self.auto_pad=auto_pad
+        self.auto_pad=True
 
     def forward(self, x, ret_attn_mask=False):
         """

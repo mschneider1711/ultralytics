@@ -173,7 +173,7 @@ class Block(nn.Module):
                        num_heads=8, n_win=7, qk_dim=None, qk_scale=None,
                        kv_per_win=4, kv_downsample_ratio=4, kv_downsample_kernel=None, kv_downsample_mode='ada_avgpool',
                        topk=4, param_attention="qkvo", param_routing=False, diff_routing=False, soft_routing=False, mlp_ratio=4, mlp_dwconv=False,
-                       side_dwconv=5, before_attn_dwconv=3, pre_norm=True, auto_pad=False):
+                       side_dwconv=5, before_attn_dwconv=3, pre_norm=True, auto_pad=True):
         super().__init__()
         qk_dim = qk_dim or dim
 
@@ -515,6 +515,31 @@ def biformer_base(pretrained=False, pretrained_cfg=None,
         url = model_urls[model_key]
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", check_hash=True, file_name=f"{model_key}.pth")
         model.load_state_dict(checkpoint["model"])
+
+    return model
+
+@register_model
+def biformer_stl(pretrained=False, pretrained_cfg=None,
+                  pretrained_cfg_overlay=None, **kwargs):
+    model = BiFormer(
+        depth=[2, 2, 6, 2],
+        embed_dim=[96, 192, 384, 768], mlp_ratios=[4, 4, 4, 4],
+        #------------------------------
+        n_win=8,
+        kv_downsample_mode='identity',
+        kv_per_wins=[-1, -1, -1, -1],
+        topks=[1, 4, 16, -2],
+        side_dwconv=5,
+        before_attn_dwconv=3,
+        layer_scale_init_value=-1,
+        qk_dims=[96, 192, 384, 768],
+        head_dim=32,
+        param_routing=False, diff_routing=False, soft_routing=False,
+        pre_norm=True,
+        pe=None,
+        #-------------------------------
+        **kwargs)
+    model.default_cfg = _cfg()
 
     return model
 

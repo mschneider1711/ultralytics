@@ -116,6 +116,7 @@ class PyramidVisionTransformerV2(nn.Module):
 
     def forward(self, x):
         features = self.backbone.forward_features(x)
+
         return features  # P3, P4, P5
 
     @property
