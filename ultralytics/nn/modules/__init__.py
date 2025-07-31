@@ -16,8 +16,7 @@ Examples:
     >>> torch.onnx.export(m, x, f)
     >>> os.system(f"onnxslim {f} {f} && open {f}")  # pip install onnxslim
 """
-from ultralytics.nn.modules.biformer import BiFormerBlock, BiFormerCSPBlock, BiFormerC2fBlock
-from .SwinTransformer import SwinTransformer
+from .swintransformer.SwinTransformerV1 import SwinTransformer
 from .swintransformer.SwinTransformerV2 import SwinTransformerV2
 from .biformer.biformer_backbone import BiFormer
 from .PVT2 import C3PVT2
@@ -49,6 +48,9 @@ from .block import (
     C3Ghost,
     C3k2,
     C3x,
+    C2fSTRV2,
+    C2fSTRV1,
+    C2fBF,
     CBFuse,
     CBLinear,
     ContrastiveHead,
@@ -146,6 +148,9 @@ __all__ = (
     "C2fAttn",
     "C3x",
     "C3TR",
+    "C2fSTRV2",
+    "C2fSTRV1",
+    "C2fBF",
     "C3Ghost",
     "GhostBottleneck",
     "Bottleneck",

@@ -14,7 +14,6 @@ from ultralytics.nn.modules.biformer.biformer_backbone import BiFormer
 from ultralytics.nn.modules.swintransformer.swin_backbone import SwinTransformerV2
 from ultralytics.nn.modules.pvt.pvt_backbone import PyramidVisionTransformerV2
 
-from ultralytics.nn.modules.biformer import BiFormerBlock, BiFormerCSPBlock, BiFormerC2fBlock
 from ultralytics.nn.autobackend import check_class_names
 from ultralytics.nn.modules import (
     AIFI,
@@ -42,6 +41,9 @@ from ultralytics.nn.modules import (
     C3k2,
     C3PVT2,
     C3x,
+    C2fSTRV2,
+    C2fSTRV2,
+    C2fBF,
     CBFuse,
     CBLinear,
     Classify,
@@ -70,7 +72,6 @@ from ultralytics.nn.modules import (
     RTDETRDecoder,
     SCDown,
     Segment,
-    SwinTransformer,
     TorchVision,
     TransformerBlock,
     WorldDetect,
@@ -1624,10 +1625,6 @@ def parse_model(d, ch, verbose=True):
             GhostConv,
             Bottleneck,
             GhostBottleneck,
-            BiFormerBlock,
-            BiFormerCSPBlock,
-            BiFormerC2fBlock,
-            SwinTransformer,
             TransformerBlock,
             C3PVT2,
             GAM,
@@ -1650,6 +1647,9 @@ def parse_model(d, ch, verbose=True):
             C2fAttn,
             C3,
             C3TR,
+            C2fSTRV2,
+            C2fSTRV2,
+            C2fBF,
             C3Ghost,
             torch.nn.ConvTranspose2d,
             DWConvTranspose2d,
@@ -1671,6 +1671,9 @@ def parse_model(d, ch, verbose=True):
             C2fAttn,
             C3,
             C3TR,
+            C2fSTRV2,
+            C2fSTRV2,
+            C2fBF,
             C3Ghost,
             C3x,
             RepC3,

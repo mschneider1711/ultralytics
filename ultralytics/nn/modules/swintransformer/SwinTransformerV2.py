@@ -5,6 +5,32 @@ import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 import numpy as np
 
+def autopad(k, p=None, d=1):  # kernel, padding, dilation
+    """Pad to 'same' shape outputs."""
+    if d > 1:
+        k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]  # actual kernel-size
+    if p is None:
+        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
+    return p
+
+class Conv(nn.Module):
+    """Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)."""
+    default_act = nn.SiLU()  # default activation
+
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
+        """Initialize Conv layer with given arguments including activation."""
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p, d), groups=g, dilation=d, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
+
+    def forward(self, x):
+        """Apply convolution, batch normalization and activation to input tensor."""
+        return self.act(self.bn(self.conv(x)))
+
+    def forward_fuse(self, x):
+        """Perform transposed convolution of 2D data."""
+        return self.act(self.conv(x))
 
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
@@ -249,7 +275,7 @@ class SwinTransformerBlock(nn.Module):
 
         x = x.view(B, H * W, C)
 
-        # FFN mit Pre-Norm (V2 Stil)
+        # FFN
         x = shortcut + self.drop_path(x)
         x = x + self.drop_path(self.mlp(self.norm2(x)))
 
@@ -459,6 +485,7 @@ class SwinTransformerV2(nn.Module):
             self.add_module(layer_name, layer)
 
         self._freeze_stages()
+        self.init_weights()
 
     def _freeze_stages(self):
         if self.frozen_stages >= 0:
@@ -516,6 +543,38 @@ class SwinTransformerV2(nn.Module):
                 outs.append(out)
 
         return tuple(outs)
+    
+# Wrapper classed used in C3STRV2 module in ultralytics, just instantiates SwinTransformerBlocks withouth PatchMerging
+class SwinTransformerWrapper(nn.Module):
+    def __init__(self, c1, c2, num_heads, num_layers, window_size=8):
+        super().__init__()
+        self.conv = None
+        self.depth = num_layers
+        if c1 != c2:
+            self.conv = Conv(c1, c2)
+        # remove input_resolution
+        self.block = BasicLayer(dim=c2, depth=num_layers, num_heads=num_heads, window_size=window_size)
+
+    def forward(self, x):
+        print(x.shape)
+        if self.conv is not None:
+            x = self.conv(x)
+    
+        # get input dimensions of tensor
+        B, C, Wh, Ww = x.size(0), x.size(1), x.size(2), x.size(3)
+
+        # flatten and transpose dimensions, x[b c h w] to x [b l c], l=h*w
+        x = x.flatten(2).transpose(1, 2)
+        
+        # forward swin transformer blocks
+        x_out, H, W, x, Wh, Ww = self.block(x, Wh, Ww)
+
+        # reshape tensor from x[b lc c] to x[b c h w]
+        x_out = x_out.permute(0, 2, 1).contiguous().view(B, C, Wh, Ww) 
+
+        print("output of swin",x_out.shape)
+
+        return x_out
 
 from functools import partial
 from timm.models.registry import register_model

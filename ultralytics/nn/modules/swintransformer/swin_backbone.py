@@ -47,7 +47,7 @@ class SwinTransformerV2(nn.Module):
         super().__init__()
         assert variant in SWIN_VARIANTS, f"Unknown Swin variant: {variant}"
         if pretrained:
-            self.backbone = SWIN_VARIANTS[variant](pretrained=pretrained, pretrained_window_sizes=[0,0,0,0])
+            self.backbone = SWIN_VARIANTS[variant](pretrained=pretrained, pretrained_window_sizes=[8,8,8,4])
             self.load_swin_weights(self.backbone, variant)
         else:
             self.backbone = SWIN_VARIANTS[variant](pretrained=pretrained)

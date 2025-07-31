@@ -52,123 +52,8 @@ def get_pe_layer(emb_dim, pe_dim=None, name='none'):
     else:
         raise ValueError(f'PE name {name} is not surpported!')
     
-    import torch
 
 class BiFormerBlock(nn.Module):
-    def __init__(self, c1, c2, num_layers=1, e=0.5):
-        """
-        YOLO-kompatibler BiFormerBlock
-        ------------------------------
-        c1: Eingangs-Kanalanzahl
-        c2: Ausgangs-Kanalanzahl
-        num_layers: Anzahl gestapelter BiFormer-Blöcke
-        e:  Expansion-Faktor für interne Kanäle (default: 1.0, keine Änderung)
-
-        Beispiel: [128, 256, 2, 0.5] → 2 BiFormer mit 128 In, 256 Out, intern 128 Kanäle
-        """
-        super().__init__()
-
-        # anzahl der layers ausgeben
-        print(f"[DEBUG] BiFormerBlock: {num_layers} layers, c1={c1}, c2={c2}, e={e}")
-
-        num_layers = max(1, int(num_layers))  # Stelle sicher, dass immer ≥1 Layer gebaut wird
-        c_ = int(c2 * e)                      # Interne Dimension
-
-        # Falls nötig, konvertiere Eingangs-Kanäle
-        self.cv = Conv(c1, c_, 1, 1) if c1 != c_ else nn.Identity()
-
-        # Erzeuge n gestapelte BiFormer-Blöcke
-        self.m = nn.Sequential(*[
-            Block(
-                dim=c_,
-                num_heads=max(1, c_ // 32),
-                n_win=4,
-                topk=4,
-                auto_pad=True
-            ) for _ in range(num_layers)
-        ])
-
-        # Rückprojektion
-        self.out_proj = Conv(c_, c2, 1, 1) if c_ != c2 else nn.Identity()
-
-    def forward(self, x):
-        """
-        Vorwärtsdurchlauf:
-        1. Optional Kanalanpassung
-        2. BiFormer-Blöcke
-        3. Optional Rückprojektion
-        """
-        x = self.cv(x)
-        x = self.m(x)
-        x = self.out_proj(x)
-        return x
-    
-class BiFormerCSPBlock(nn.Module):
-    """
-    CSP-kompatibler BiFormer-Block (YOLO-Stil)
-    ------------------------------------------
-    c1: Eingangskanäle
-    c2: Ausgangskanäle
-    n:  Anzahl BiFormer-Blöcke
-    e:  Expansion-Faktor für interne Kanäle
-    """
-    def __init__(self, c1, c2, n=1, e=0.5):
-        super().__init__()
-        c_ = int(c2 * e)  # versteckte Kanäle
-
-        self.cv1 = Conv(c1, c_, 1, 1)   # Pfad durch BiFormer
-        self.cv2 = Conv(c1, c_, 1, 1)   # Shortcut-Pfad
-        self.cv3 = Conv(2 * c_, c2, 1, 1)  # Fusion
-
-        self.m = nn.Sequential(*[
-            Block(
-                dim=c_,
-                num_heads=max(1, c_ // 32),
-                n_win=4,          # Oder adaptiv übergeben
-                topk=4,
-                auto_pad=True
-            ) for _ in range(n)
-        ])
-
-    def forward(self, x):
-        y1 = self.m(self.cv1(x))
-        y2 = self.cv2(x)
-        return self.cv3(torch.cat((y1, y2), dim=1))
-    
-class BiFormerC2fBlock(nn.Module):
-    """
-    C2f-Variante mit BiFormer-Blöcken (YOLOv8-Stil).
-    -----------------------------------------------
-    c1: Eingangs-Kanäle
-    c2: Ausgangs-Kanäle
-    n : Anzahl BiFormer-Blöcke
-    e : Expansion-Faktor
-    """
-
-    def __init__(self, c1: int, c2: int, n: int = 1, e: float = 0.5):
-        super().__init__()
-        self.c = int(c2 * e)  # interne Kanäle
-        self.cv1 = Conv(c1, 2 * self.c, 1, 1)  # erster 1x1 Conv + Split
-        self.cv2 = Conv((2 + n) * self.c, c2, 1, 1)  # Fusion-Conv
-
-        self.m = nn.ModuleList([
-            Block(
-                dim=self.c,
-                num_heads=max(1, self.c // 32),
-                n_win=4,
-                topk=4,
-                auto_pad=True
-            ) for _ in range(n)
-        ])
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        y = list(self.cv1(x).chunk(2, 1))  # Split in zwei Pfade
-        for m in self.m:
-            y.append(m(y[-1]))  # jeweils auf letzten Output anwenden
-        return self.cv2(torch.cat(y, dim=1))  # Fusion
-    
-
-class Block(nn.Module):
     def __init__(self, dim, drop_path=0., layer_scale_init_value=-1,
                        num_heads=8, n_win=7, qk_dim=None, qk_scale=None,
                        kv_per_win=4, kv_downsample_ratio=4, kv_downsample_kernel=None, kv_downsample_mode='ada_avgpool',
@@ -331,7 +216,7 @@ class BiFormer(nn.Module):
         cur = 0
         for i in range(4):
             stage = nn.Sequential(
-                *[Block(dim=embed_dim[i], drop_path=dp_rates[cur + j], 
+                *[BiFormerBlock(dim=embed_dim[i], drop_path=dp_rates[cur + j], 
                         layer_scale_init_value=layer_scale_init_value,
                         topk=topks[i],
                         num_heads=nheads[i],

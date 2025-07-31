@@ -11,6 +11,9 @@ from ultralytics.utils.torch_utils import fuse_conv_and_bn
 
 from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad
 from .transformer import TransformerBlock
+from .swintransformer.SwinTransformerV2 import SwinTransformerWrapper
+from .swintransformer.SwinTransformerV1 import SwinTransformerBlock
+from .biformer.biformer import BiFormerBlock
 
 __all__ = (
     "DFL",
@@ -28,6 +31,9 @@ __all__ = (
     "BNContrastiveHead",
     "C3x",
     "C3TR",
+    "C3STRV2",
+    "C3STRV1",
+    "C3BF",
     "C3Ghost",
     "GhostBottleneck",
     "Bottleneck",
@@ -316,8 +322,11 @@ class C2f(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through C2f layer."""
+        print(x.shape)
         y = list(self.cv1(x).chunk(2, 1))
+        print(y[0].shape)
         y.extend(m(y[-1]) for m in self.m)
+        print(y[-1].shape)
         return self.cv2(torch.cat(y, 1))
 
     def forward_split(self, x: torch.Tensor) -> torch.Tensor:
@@ -419,6 +428,93 @@ class C3TR(C3):
         c_ = int(c2 * e)
         self.m = TransformerBlock(c_, c_, 4, n)
 
+class C2fSTRV2(C2f):
+    """C2f module with SwinTransformer using SwinTransformerV2"""
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = False, g: int = 1, e: float = 0.5):
+        """
+        Initialize C2f module with SwinTransformerV2.
+
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of SwinTransformerV2 blocks.
+            shortcut (bool): Whether to use shortcut connections.
+            g (int): Groups for convolutions.
+            e (float): Expansion ratio.
+        """
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        num_heads = c_ // 32
+        self.m = SwinTransformerWrapper(c_, c_, num_heads, n)
+        self.cv2 = Conv(3 * self.c_, c2, 1)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass through C2f layer."""
+        y = list(self.cv1(x).chunk(2, 1))
+        y.append(self.m(y[-1]))
+        return self.cv2(torch.cat(y, 1))
+
+
+class C2fSTRV1(C2f):
+    """C3 module with SwinTransformer using SwinTransformerV1"""
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5):
+        """
+        Initialize C3 module with SwinTransformerV1.
+
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of SwinTransformerV1 blocks.
+            shortcut (bool): Whether to use shortcut connections.
+            g (int): Groups for convolutions.
+            e (float): Expansion ratio.
+        """
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        num_heads = c_ // 32
+        self.m = SwinTransformerBlock(c_, c_, num_heads, n)
+        self.cv2 = Conv(3 * self.c_, c2, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass through C2f layer."""
+        y = list(self.cv1(x).chunk(2, 1))
+        y.append(self.m(y[-1]))
+        return self.cv2(torch.cat(y, 1))
+
+class C2fBF(C2f):
+    """C3 module with BiFormer"""
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5):
+        """
+        Initialize C3 module with SwinTransformerV1.
+
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of SwinTransformerV1 blocks.
+            shortcut (bool): Whether to use shortcut connections.
+            g (int): Groups for convolutions.
+            e (float): Expansion ratio.
+        """
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        num_heads = c_ // 32
+        self.cv2 = Conv(3 * self.c_, c2, 1)
+
+        self.m = nn.Sequential(*[
+            BiFormerBlock(
+                dim=c_,
+                num_heads=max(1, c_ // 32),
+                n_win=8,  
+                topk=4,
+                auto_pad=True
+            ) for _ in range(n)
+        ])
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass through C2f layer."""
+        y = list(self.cv1(x).chunk(2, 1))
+        y.append(self.m(y[-1]))
+        return self.cv2(torch.cat(y, 1))
 
 class C3Ghost(C3):
     """C3 module with GhostBottleneck()."""
