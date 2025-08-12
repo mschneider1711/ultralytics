@@ -53,7 +53,7 @@ def get_pe_layer(emb_dim, pe_dim=None, name='none'):
         raise ValueError(f'PE name {name} is not surpported!')
     
 
-class BiFormerBlock(nn.Module):
+class Block(nn.Module):
     def __init__(self, dim, drop_path=0., layer_scale_init_value=-1,
                        num_heads=8, n_win=7, qk_dim=None, qk_scale=None,
                        kv_per_win=4, kv_downsample_ratio=4, kv_downsample_kernel=None, kv_downsample_mode='ada_avgpool',
@@ -216,7 +216,7 @@ class BiFormer(nn.Module):
         cur = 0
         for i in range(4):
             stage = nn.Sequential(
-                *[BiFormerBlock(dim=embed_dim[i], drop_path=dp_rates[cur + j], 
+                *[Block(dim=embed_dim[i], drop_path=dp_rates[cur + j], 
                         layer_scale_init_value=layer_scale_init_value,
                         topk=topks[i],
                         num_heads=nheads[i],

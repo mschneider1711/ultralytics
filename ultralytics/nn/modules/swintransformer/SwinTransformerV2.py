@@ -145,7 +145,7 @@ class WindowAttention(nn.Module):
             self.v_bias = nn.Parameter(torch.zeros(dim))
         else:
             self.q_bias = None
-            self.v_bias = None
+            self.v_bias = None 
             
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
@@ -154,38 +154,47 @@ class WindowAttention(nn.Module):
 
     def forward(self, x, mask=None):
         B_, N, C = x.shape
-        
-        # V2: Bias handling
+        in_dtype = x.dtype
+        device = x.device
+
+        # Construct qkv_bias from q_bias/v_bias and cast
         qkv_bias = None
         if self.q_bias is not None:
-            qkv_bias = torch.cat((self.q_bias, torch.zeros_like(self.v_bias, requires_grad=False), self.v_bias))
-        
+            qkv_bias = torch.cat((
+                self.q_bias,
+                torch.zeros_like(self.v_bias, requires_grad=False),
+                self.v_bias
+            )).to(device=device, dtype=in_dtype)  # datatype casting
+
         qkv = F.linear(input=x, weight=self.qkv.weight, bias=qkv_bias)
         qkv = qkv.reshape(B_, N, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        # V2: Cosine attention
         attn = (F.normalize(q, dim=-1) @ F.normalize(k, dim=-1).transpose(-2, -1))
-        logit_scale = torch.clamp(self.logit_scale, max=torch.log(torch.tensor(1. / 0.01).to(self.logit_scale.device))).exp()
+
+        max_val = torch.log(torch.tensor(1. / 0.01, device=self.logit_scale.device, dtype=self.logit_scale.dtype))
+        logit_scale = torch.clamp(self.logit_scale, max=max_val).exp()
+        logit_scale = logit_scale.to(dtype=attn.dtype, device=attn.device)  # datatype casting
         attn = attn * logit_scale
 
-        # V2: Continuous relative position bias
-        relative_position_bias_table = self.cpb_mlp(self.relative_coords_table).view(-1, self.num_heads)
+        # relative_coords_table vor MLP casten (und damit downstream)
+        rel_tbl = self.relative_coords_table.to(device=device, dtype=in_dtype)  # datatype casting
+        relative_position_bias_table = self.cpb_mlp(rel_tbl).view(-1, self.num_heads)
         relative_position_bias = relative_position_bias_table[self.relative_position_index.view(-1)].view(
-            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)
-        relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+            self.window_size[0]*self.window_size[1], self.window_size[0]*self.window_size[1], -1)
+        relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()
         relative_position_bias = 16 * torch.sigmoid(relative_position_bias)
+        relative_position_bias = relative_position_bias.to(dtype=attn.dtype, device=attn.device)  # datatype casting
         attn = attn + relative_position_bias.unsqueeze(0)
 
         if mask is not None:
             nW = mask.shape[0]
+            mask = mask.to(dtype=attn.dtype, device=attn.device)  # datatype casting
             attn = attn.view(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
             attn = attn.view(-1, self.num_heads, N, N)
             attn = self.softmax(attn)
         else:
             attn = self.softmax(attn)
-
-        attn = self.attn_drop(attn)
 
         x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
         x = self.proj(x)
@@ -220,7 +229,7 @@ class SwinTransformerBlock(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
-        # Für Object Detection: H, W werden dynamisch gesetzt
+        # For Object Detection: H, W will be set dinamically
         self.H = None
         self.W = None
 
@@ -238,7 +247,7 @@ class SwinTransformerBlock(nn.Module):
         x = self.norm1(x)
         x = x.view(B, H, W, C)
 
-        # Padding zu Vielfachen der Window-Größe
+        # padding to multiple of window size
         pad_l = pad_t = 0
         pad_r = (self.window_size - W % self.window_size) % self.window_size
         pad_b = (self.window_size - H % self.window_size) % self.window_size
@@ -363,6 +372,7 @@ class BasicLayer(nn.Module):
         mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
         attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
         attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
+        attn_mask = attn_mask.to(dtype=x.dtype, device=x.device)  # Datatype casting, for AMP training
 
         for blk in self.blocks:
             blk.H, blk.W = H, W
@@ -556,7 +566,6 @@ class SwinTransformerWrapper(nn.Module):
         self.block = BasicLayer(dim=c2, depth=num_layers, num_heads=num_heads, window_size=window_size)
 
     def forward(self, x):
-        print(x.shape)
         if self.conv is not None:
             x = self.conv(x)
     
@@ -572,8 +581,6 @@ class SwinTransformerWrapper(nn.Module):
         # reshape tensor from x[b lc c] to x[b c h w]
         x_out = x_out.permute(0, 2, 1).contiguous().view(B, C, Wh, Ww) 
 
-        print("output of swin",x_out.shape)
-
         return x_out
 
 from functools import partial
@@ -583,7 +590,7 @@ import torch.nn as nn
 @register_model
 def swinv2_tiny(pretrained=False,pretrained_window_sizes = None, **kwargs):
     if pretrained_window_sizes is None:
-        pretrained_window_sizes = [0,0,0,0]
+        pretrained_window_sizes = [8,8,8,8]
     model = SwinTransformerV2(
         embed_dim=96,
         depths=[2, 2, 6, 2],
@@ -600,7 +607,7 @@ def swinv2_tiny(pretrained=False,pretrained_window_sizes = None, **kwargs):
 @register_model
 def swinv2_small(pretrained=False,pretrained_window_sizes = None, **kwargs):
     if pretrained_window_sizes is None:
-        pretrained_window_sizes = [0,0,0,0]
+        pretrained_window_sizes = [8,8,8,8]
     model = SwinTransformerV2(
         embed_dim=96,
         depths=[2, 2, 18, 2],
@@ -617,7 +624,7 @@ def swinv2_small(pretrained=False,pretrained_window_sizes = None, **kwargs):
 @register_model
 def swinv2_base(pretrained=False,pretrained_window_sizes = None, **kwargs):
     if pretrained_window_sizes is None:
-        pretrained_window_sizes = [0,0,0,0]
+        pretrained_window_sizes = [8,8,8,8]
     model = SwinTransformerV2(
         embed_dim=128,
         depths=[2, 2, 18, 2],

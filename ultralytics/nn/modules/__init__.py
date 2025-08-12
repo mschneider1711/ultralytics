@@ -19,7 +19,6 @@ Examples:
 from .swintransformer.SwinTransformerV1 import SwinTransformer
 from .swintransformer.SwinTransformerV2 import SwinTransformerV2
 from .biformer.biformer_backbone import BiFormer
-from .PVT2 import C3PVT2
 from .GAM import GAM
 from .block import (
     C1,
@@ -51,6 +50,7 @@ from .block import (
     C2fSTRV2,
     C2fSTRV1,
     C2fBF,
+    C2fPVTV2,
     CBFuse,
     CBLinear,
     ContrastiveHead,
@@ -151,6 +151,7 @@ __all__ = (
     "C2fSTRV2",
     "C2fSTRV1",
     "C2fBF",
+    "C2fPVTV2",
     "C3Ghost",
     "GhostBottleneck",
     "Bottleneck",
