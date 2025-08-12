@@ -5,7 +5,7 @@ import os
 
 # === CONFIG ===
 BASE_DIR = Path(__file__).resolve().parent
-CUSTOM_CONFIGS_DIR = BASE_DIR / "ultralytics/cfg/models/v8_costum3"
+CUSTOM_CONFIGS_DIR = BASE_DIR / "ultralytics/cfg/models/v8_costum2"
 SPLITS_DIR = BASE_DIR / "PlantDoc-3" / "splits"
 RESULTS = []
 
@@ -21,6 +21,7 @@ custom_configs = sorted(CUSTOM_CONFIGS_DIR.glob("*.yaml"))
 
 # Combine all
 config_files = custom_configs + official_yaml_configs + official_pretrained_models
+config_files = custom_configs
 
 # === FIND SPLITS ===
 split_data_files = sorted(SPLITS_DIR.glob("split*/data.yaml"))
@@ -40,7 +41,8 @@ for config_path in config_files:
         else "custom"
     )
 
-    for data_yaml in split_data_files:
+    for idx, data_yaml in enumerate(split_data_files):
+
         split_name = data_yaml.parent.name
         print(f"\n--- TRAINING {model_name} ({source_type}) ON {split_name} ---")
 
@@ -48,19 +50,20 @@ for config_path in config_files:
             # Load initial model (pretrained or from config)
             model = YOLO(config_path)
 
-            project_dir = BASE_DIR / "plantdocexperiments"
+            project_dir = BASE_DIR / "PlantDocBackbone2"
             name = f"{model_name}_{source_type}_{split_name}" 
 
             # === TRAIN ===
             model.train(
                 data=str(data_yaml),
-                epochs=1,  # <-- change here for longer runs
+                epochs=300,
                 imgsz=640,
                 name=name,
                 project=str(project_dir),
                 exist_ok=True,
                 verbose=False,
-                batch=1
+                batch=16,
+                device="cuda"
             )
 
             # === LOAD best.pt ===
