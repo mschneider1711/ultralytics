@@ -21,27 +21,6 @@ SWIN_PRETRAINED_URLS = {
     "swin_base": "https://github.com/SwinTransformer/storage/releases/download/v2.0.0/swinv2_base_patch4_window8_256.pth",
 }
 
-def letterbox_tensor(image, new_shape=(640, 640), color=(114, 114, 114)):
-    # image: (B, C, H, W)
-    B, C, H, W = image.shape
-    new_h, new_w = new_shape
-
-    scale = min(new_w / W, new_h / H)
-    resized_h, resized_w = int(round(H * scale)), int(round(W * scale))
-
-    # Resize
-    image = F.interpolate(image, size=(resized_h, resized_w), mode='bilinear', align_corners=False)
-
-    # Padding
-    pad_top = (new_h - resized_h) // 2
-    pad_bottom = new_h - resized_h - pad_top
-    pad_left = (new_w - resized_w) // 2
-    pad_right = new_w - resized_w - pad_left
-
-    image = F.pad(image, (pad_left, pad_right, pad_top, pad_bottom), value=color[0])
-    return image
-
-
 class SwinTransformerV2(nn.Module):
     def __init__(self, variant="swin_tiny", pretrained=None, input_size=640):
         super().__init__()
