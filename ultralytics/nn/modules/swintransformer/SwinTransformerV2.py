@@ -169,6 +169,13 @@ class WindowAttention(nn.Module):
 
         attn = self.attn_drop(attn)
 
+        # print(attn.dtype, v.dtype)
+        try:
+            x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
+        except:
+            # print(attn.dtype, v.dtype)
+            x = (attn.half() @ v).transpose(1, 2).reshape(B_, N, C)
+
         x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
@@ -673,8 +680,6 @@ class SwinTransformerWrapper(nn.Module):
 
         # reshape tensor from x[b lc c] to x[b c h w]
         x_out = x_out.permute(0, 2, 1).contiguous().view(B, C, Wh, Ww) 
-
-        print("output of swin",x_out.shape)
 
         return x_out
 
