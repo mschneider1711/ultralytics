@@ -643,10 +643,8 @@ class SwinTransformerV1(nn.Module):
 
         outs = []
         for i in range(self.num_layers):
-            print(f'Processing layer {i} with input shape {x.shape}')
             layer = self.layers[i]
             x_out, H, W, x, Wh, Ww = layer(x, Wh, Ww)
-            print(f'Output shape after layer {i}: {x_out.shape}')
 
             if i in self.out_indices:
                 norm_layer = getattr(self, f'norm{i}')
