@@ -4,8 +4,6 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 import numpy as np
-from torch.cuda.amp import autocast
-
 
 def autopad(k, p=None, d=1):  # kernel, padding, dilation
     """Pad to 'same' shape outputs."""
@@ -166,57 +164,54 @@ class WindowAttention(nn.Module):
         qkv = qkv.reshape(B_, N, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        # --- Rechne Logits/Bias/Mask/Softmax stabil in FP32 ---
-        with autocast(enabled=False):
-            # Cosine-Logits (Stabilität: eps, float32)
-            qf = F.normalize(q, dim=-1, eps=1e-6).float()
-            kf = F.normalize(k, dim=-1, eps=1e-6).float()
-            attn_logits = qf @ kf.transpose(-2, -1)  # FP32
+        # --- Logits stabil in FP32 ---
+        qf = F.normalize(q.float(), dim=-1, eps=1e-6)
+        kf = F.normalize(k.float(), dim=-1, eps=1e-6)
+        attn_logits = qf @ kf.transpose(-2, -1)   # FP32
 
-            # logit_scale in FP32 (geclampte Exp)
-            max_val = torch.log(torch.tensor(1.0 / 0.01, device=self.logit_scale.device, dtype=torch.float32))
-            logit_scale = torch.clamp(self.logit_scale.float(), max=max_val).exp().to(attn_logits.device)
-            attn_logits.mul_(logit_scale)
+        # logit_scale in FP32 stabilisieren
+        max_val = torch.tensor(4.6, device=self.logit_scale.device, dtype=torch.float32)  # exp(4.6) ≈ 100
+        logit_scale = torch.clamp(self.logit_scale.float(), max=max_val).exp()
+        attn_logits = attn_logits * logit_scale
 
-            # Continuous relative position bias (cpb_mlp) in FP32
-            rel_tbl = self.relative_coords_table.to(device=attn_logits.device, dtype=torch.float32)
-            # WICHTIG: Linear-Gewichte explizit als float32 nutzen, sonst Float/Half-Mismatch möglich
-            mlp0, act, mlp2 = self.cpb_mlp[0], self.cpb_mlp[1], self.cpb_mlp[2]
-            x1 = F.linear(rel_tbl, mlp0.weight.float(), mlp0.bias.float())
-            x1 = F.relu_(x1)  # inplace ok
-            relative_position_bias_table = F.linear(x1, mlp2.weight.float(), mlp2.bias.float()).view(-1, self.num_heads)
+        # relative position bias (MLP komplett in FP32)
+        rel_tbl = self.relative_coords_table.to(device=attn_logits.device, dtype=torch.float32)
+        mlp0, act, mlp2 = self.cpb_mlp[0], self.cpb_mlp[1], self.cpb_mlp[2]
+        x1 = F.linear(rel_tbl, mlp0.weight.float(), mlp0.bias.float())
+        x1 = F.relu(x1, inplace=False)
+        relative_position_bias_table = F.linear(x1, mlp2.weight.float(), mlp2.bias.float()).view(-1, self.num_heads)
 
-            relative_position_bias = relative_position_bias_table[self.relative_position_index.view(-1)].view(
-                self.window_size[0]*self.window_size[1],
-                self.window_size[0]*self.window_size[1],
-                -1
-            ).permute(2, 0, 1).contiguous()
-            relative_position_bias = 16 * torch.sigmoid(relative_position_bias.float())
-            attn_logits.add_(relative_position_bias.unsqueeze(0))
+        relative_position_bias = relative_position_bias_table[self.relative_position_index.view(-1)].view(
+            self.window_size[0]*self.window_size[1],
+            self.window_size[0]*self.window_size[1],
+            -1
+        ).permute(2, 0, 1).contiguous()
 
-            # Maske in FP32 anwenden, mit -inf (nicht -100)
-            if mask is not None:
-                nW = mask.shape[0]
-                mask32 = mask.to(device=attn_logits.device, dtype=torch.float32)
-                neg_inf = torch.finfo(mask32.dtype).min
-                mask32 = torch.where(mask32 != 0, torch.full_like(mask32, neg_inf), torch.zeros_like(mask32))
-                attn_logits = attn_logits.view(B_ // nW, nW, self.num_heads, N, N) \
-                            .add_(mask32.unsqueeze(1).unsqueeze(0)) \
-                            .view(-1, self.num_heads, N, N)
+        # Faktor reduzieren für Stabilität
+        relative_position_bias = 4 * torch.sigmoid(relative_position_bias)
+        attn_logits = attn_logits + relative_position_bias.unsqueeze(0)
 
-            # Softmax in FP32
-            attn_fp32 = F.softmax(attn_logits, dim=-1)
+        # Maske anwenden in FP32
+        if mask is not None:
+            nW = mask.shape[0]
+            mask32 = mask.to(device=attn_logits.device, dtype=torch.float32)
+            attn_logits = attn_logits.view(B_ // nW, nW, self.num_heads, N, N)
+            attn_logits = attn_logits + mask32.unsqueeze(1).unsqueeze(0) * -1e9
+            attn_logits = attn_logits.view(-1, self.num_heads, N, N)
 
-        # Dropout wie gehabt
-        attn = self.attn_drop(attn_fp32)
+        # Softmax in FP32
+        attn_fp32 = F.softmax(attn_logits, dim=-1)
 
-        # >>> Dtype VOR dem Matmul angleichen (sonst Half/Float-Mismatch)
-        attn = attn.to(v.dtype)  # unter AMP i. d. R. float16
+        # zurück in dtype von v (typ. float16 unter AMP)
+        attn = self.attn_drop(attn_fp32).to(v.dtype)
+
+        # Matmul
         x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
 
-        x = self.proj(x)         # wieder im (Auto)cast-Kontext → ok
+        x = self.proj(x)
         x = self.proj_drop(x)
         return x
+
 
 class SwinTransformerBlock(nn.Module):
     """ Swin Transformer Block V2 für Object Detection.
