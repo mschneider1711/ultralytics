@@ -583,7 +583,7 @@ import torch.nn as nn
 @register_model
 def swinv2_tiny(pretrained=False,pretrained_window_sizes = None, **kwargs):
     if pretrained_window_sizes is None:
-        pretrained_window_sizes = [0,0,0,0]
+        pretrained_window_sizes = [8,8,8,8]
     model = SwinTransformerV2(
         embed_dim=96,
         depths=[2, 2, 6, 2],
@@ -600,7 +600,7 @@ def swinv2_tiny(pretrained=False,pretrained_window_sizes = None, **kwargs):
 @register_model
 def swinv2_small(pretrained=False,pretrained_window_sizes = None, **kwargs):
     if pretrained_window_sizes is None:
-        pretrained_window_sizes = [0,0,0,0]
+        pretrained_window_sizes = [8,8,8,8]
     model = SwinTransformerV2(
         embed_dim=96,
         depths=[2, 2, 18, 2],
@@ -617,7 +617,7 @@ def swinv2_small(pretrained=False,pretrained_window_sizes = None, **kwargs):
 @register_model
 def swinv2_base(pretrained=False,pretrained_window_sizes = None, **kwargs):
     if pretrained_window_sizes is None:
-        pretrained_window_sizes = [0,0,0,0]
+        pretrained_window_sizes = [8,8,8,8]
     model = SwinTransformerV2(
         embed_dim=128,
         depths=[2, 2, 18, 2],
