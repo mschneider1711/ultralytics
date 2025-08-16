@@ -4,12 +4,6 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 import numpy as np
-from torch.cuda.amp import autocast
-
-class LayerNormFP32(nn.LayerNorm):
-    def forward(self, x):
-        y = F.layer_norm(x.float(), self.normalized_shape, self.weight.float(), self.bias.float(), self.eps)
-        return y.to(x.dtype)
 
 def autopad(k, p=None, d=1):  # kernel, padding, dilation
     """Pad to 'same' shape outputs."""
@@ -170,45 +164,35 @@ class WindowAttention(nn.Module):
         qkv = qkv.reshape(B_, N, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
-        # --- Rechne Logits/Mask/Softmax stabil in FP32 ---
-        with autocast(enabled=False):
-            qn = F.normalize(q, dim=-1).float()
-            kn = F.normalize(k, dim=-1).float()
-            attn_logits = qn @ kn.transpose(-2, -1)  # FP32
+        # V2: Cosine attention
+        attn = (F.normalize(q, dim=-1) @ F.normalize(k, dim=-1).transpose(-2, -1))
+        logit_scale = torch.clamp(self.logit_scale, max=torch.log(torch.tensor(1. / 0.01).to(self.logit_scale.device))).exp()
+        attn = attn * logit_scale
 
-            # logit_scale in FP32
-            max_val = torch.log(torch.tensor(1.0 / 0.01, device=self.logit_scale.device, dtype=torch.float32))
-            logit_scale = torch.clamp(self.logit_scale.float(), max=max_val).exp().to(attn_logits.device)
-            attn_logits = attn_logits * logit_scale
+        # V2: Continuous relative position bias
+        relative_position_bias_table = self.cpb_mlp(self.relative_coords_table).view(-1, self.num_heads)
+        relative_position_bias = relative_position_bias_table[self.relative_position_index.view(-1)].view(
+            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)
+        relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+        relative_position_bias = 16 * torch.sigmoid(relative_position_bias)
+        attn = attn + relative_position_bias.unsqueeze(0)
 
-            # continuous relative position bias in FP32
-            rel_tbl = self.relative_coords_table.to(device=attn_logits.device, dtype=torch.float32)
-            relative_position_bias_table = self.cpb_mlp(rel_tbl).view(-1, self.num_heads)
-            relative_position_bias = relative_position_bias_table[self.relative_position_index.view(-1)].view(
-                self.window_size[0]*self.window_size[1], self.window_size[0]*self.window_size[1], -1
-            )
-            relative_position_bias = 16 * torch.sigmoid(relative_position_bias.permute(2, 0, 1).contiguous()).float()
-            attn_logits = attn_logits + relative_position_bias.unsqueeze(0)
+        if mask is not None:
+            nW = mask.shape[0]
+            attn = attn.view(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
+            attn = attn.view(-1, self.num_heads, N, N)
+            attn = self.softmax(attn)
+        else:
+            attn = self.softmax(attn)
 
-            # Maske in FP32 anwenden, -inf statt -100
-            if mask is not None:
-                nW = mask.shape[0]
-                mask32 = mask.to(device=attn_logits.device, dtype=torch.float32)
-                neg_inf = torch.finfo(mask32.dtype).min
-                mask32 = torch.where(mask32 != 0, torch.full_like(mask32, neg_inf), mask32)
-                attn_logits = attn_logits.view(B_ // nW, nW, self.num_heads, N, N) + mask32.unsqueeze(1).unsqueeze(0)
-                attn_logits = attn_logits.view(-1, self.num_heads, N, N)
+        attn = self.attn_drop(attn)
+        try:
+            x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
+        except:
+            # print(attn.dtype, v.dtype)
+            x = (attn.half() @ v).transpose(1, 2).reshape(B_, N, C)
 
-            # Softmax in FP32
-            attn_fp32 = F.softmax(attn_logits, dim=-1)
-
-        # Dropout im Default-dtype ist ok
-        attn = self.attn_drop(attn_fp32)
-
-        # >>> Dtype VOR dem Matmul angleichen (sonst Half/Float-Mismatch)
-        attn = attn.to(v.dtype)
-        x = (attn @ v).transpose(1, 2).reshape(B_, N, C).to(x.dtype)
-
+        #x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
@@ -611,7 +595,7 @@ def swinv2_tiny(pretrained=False,pretrained_window_sizes = None, **kwargs):
         num_heads=[3, 6, 12, 24],
         window_size=8, 
         qkv_bias=True,
-        norm_layer=partial(LayerNormFP32, eps=1e-6),
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
         pretrained_window_sizes=pretrained_window_sizes,
         **kwargs
     )
@@ -628,7 +612,7 @@ def swinv2_small(pretrained=False,pretrained_window_sizes = None, **kwargs):
         num_heads=[3, 6, 12, 24],
         window_size=8,
         qkv_bias=True,
-        norm_layer=partial(LayerNormFP32, eps=1e-6),
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
         pretrained_window_sizes=pretrained_window_sizes,
         **kwargs
     )
@@ -645,7 +629,7 @@ def swinv2_base(pretrained=False,pretrained_window_sizes = None, **kwargs):
         num_heads=[4, 8, 16, 32],
         window_size=8,
         qkv_bias=True,
-        norm_layer=partial(LayerNormFP32, eps=1e-6),
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
         pretrained_window_sizes=pretrained_window_sizes,
         **kwargs
     )
