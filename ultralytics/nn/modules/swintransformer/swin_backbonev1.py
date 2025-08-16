@@ -3,16 +3,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import cv2
-from .SwinTransformerV2 import swinv2_tiny, swinv2_small, swinv2_base
+from .SwinTransformerV1 import swinv1_tiny, swinv1_small, swinv1_base
 import os
 import torch.hub
 import matplotlib.pyplot as plt
 import torchvision.transforms.functional as F2
 
 SWIN_VARIANTS = {
-    "swin_tiny": swinv2_tiny,
-    "swin_small": swinv2_small,
-    "swin_base": swinv2_base,
+    "swin_tiny": swinv1_tiny,
+    "swin_small": swinv1_small,
+    "swin_base": swinv1_base,
 }
 
 SWIN_PRETRAINED_URLS = {
@@ -21,7 +21,7 @@ SWIN_PRETRAINED_URLS = {
     "swin_base": "https://github.com/SwinTransformer/storage/releases/download/v2.0.0/swinv2_base_patch4_window8_256.pth",
 }
 
-class SwinTransformerV2(nn.Module):
+class SwinTransformerV1(nn.Module):
     def __init__(self, variant="swin_tiny", pretrained=None, input_size=640):
         super().__init__()
         assert variant in SWIN_VARIANTS, f"Unknown Swin variant: {variant}"

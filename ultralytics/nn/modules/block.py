@@ -11,8 +11,8 @@ from ultralytics.utils.torch_utils import fuse_conv_and_bn
 
 from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad
 from .transformer import TransformerBlock
-from .swintransformer.SwinTransformerV2 import SwinTransformerWrapper
-from .swintransformer.SwinTransformerV1 import SwinTransformerBlock
+from .swintransformer.SwinTransformerV1 import SwinTransformerWrapper
+from .swintransformer.SwinTransformerV1_PAPER import SwinTransformerBlock
 from .biformer.biformer import Block as BiFormerBlock
 from .pvt.PyramidVisionTransformerV2 import Block as PVTBlock
 from .pvt.PyramidVisionTransformerV2 import OverlapPatchEmbed

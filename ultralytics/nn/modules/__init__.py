@@ -16,8 +16,10 @@ Examples:
     >>> torch.onnx.export(m, x, f)
     >>> os.system(f"onnxslim {f} {f} && open {f}")  # pip install onnxslim
 """
-from .swintransformer.SwinTransformerV1 import SwinTransformer
-from .swintransformer.SwinTransformerV2 import SwinTransformerV2
+from .swintransformer.SwinTransformerV1_PAPER import SwinTransformer
+from .swintransformer.swin_backbonev2 import SwinTransformerV2
+from .swintransformer.swin_backbonev1 import SwinTransformerV1
+from .pvt.pvt_backbone import PyramidVisionTransformerV2
 from .biformer.biformer_backbone import BiFormer
 from .GAM import GAM
 from .block import (

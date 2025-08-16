@@ -1,7 +1,8 @@
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
 from ultralytics.nn.modules.biformer.biformer_backbone import BiFormer
-from ultralytics.nn.modules.swintransformer.swin_backbone import SwinTransformerV2
+from ultralytics.nn.modules.swintransformer.swin_backbonev1 import SwinTransformerV1
+from ultralytics.nn.modules.swintransformer.swin_backbonev2 import SwinTransformerV2
 from ultralytics.nn.modules.pvt.pvt_backbone import PyramidVisionTransformerV2
 
 from .tasks import (
