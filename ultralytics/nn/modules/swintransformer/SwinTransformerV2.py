@@ -665,7 +665,6 @@ class SwinTransformerWrapper(nn.Module):
         self.block = BasicLayer(dim=c2, depth=num_layers, num_heads=num_heads, window_size=window_size)
 
     def forward(self, x):
-        print(x.shape)
         if self.conv is not None:
             x = self.conv(x)
     
