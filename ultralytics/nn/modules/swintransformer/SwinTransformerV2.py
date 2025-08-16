@@ -186,8 +186,12 @@ class WindowAttention(nn.Module):
             attn = self.softmax(attn)
 
         attn = self.attn_drop(attn)
+        print('dtypes:', 'q', q.dtype, 'k', k.dtype, 'v', v.dtype, 'attn', attn.dtype)
+        attn = attn.to(v.dtype)
+        print('dtypes:', 'q', q.dtype, 'k', k.dtype, 'v', v.dtype, 'attn', attn.dtype)
+        x = (attn @ v).transpose(1, 2).reshape(B_, N, C).to(x.dtype)
 
-        x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
+        #x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
