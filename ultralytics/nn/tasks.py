@@ -1649,7 +1649,7 @@ def parse_model(d, ch, verbose=True):
             C3,
             C3TR,
             C2fSTRV2,
-            C2fSTRV2,
+            C2fSTRV1,
             C2fBF,
             C3Ghost,
             torch.nn.ConvTranspose2d,

@@ -657,8 +657,8 @@ class SwinTransformerV1(nn.Module):
 
     
 # Wrapper classed used in C3STRV2 module in ultralytics, just instantiates SwinTransformerBlocks withouth PatchMerging
-class SwinTransformerWrapper(nn.Module):
-    def __init__(self, c1, c2, num_heads, num_layers, window_size=8):
+class SwinBlockSequence(nn.Module):
+    def __init__(self, c1, c2, num_heads, num_layers, window_size=7):
         super().__init__()
         self.conv = None
         self.depth = num_layers

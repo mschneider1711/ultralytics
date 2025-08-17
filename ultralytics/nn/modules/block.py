@@ -11,7 +11,7 @@ from ultralytics.utils.torch_utils import fuse_conv_and_bn
 
 from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad
 from .transformer import TransformerBlock
-from .swintransformer.SwinTransformerV1 import SwinTransformerWrapper
+from .swintransformer.SwinTransformerV1 import SwinBlockSequence
 from .swintransformer.SwinTransformerV1_PAPER import SwinTransformerBlock
 from .biformer.biformer import Block as BiFormerBlock
 from .pvt.PyramidVisionTransformerV2 import Block as PVTBlock
@@ -444,7 +444,7 @@ class C2fSTRV2(C2f):
         super().__init__(c1, c2, n, shortcut, g, e)
         c_ = int(c2 * e)
         num_heads = c_ // 32
-        self.m = SwinTransformerWrapper(c_, c_, num_heads, n)
+        self.m = SwinBlockSequence(c_, c_, num_heads, n)
         self.cv2 = Conv(3 * c_, c2, 1)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -455,10 +455,10 @@ class C2fSTRV2(C2f):
 
 
 class C2fSTRV1(C2f):
-    """C3 module with SwinTransformer using SwinTransformerV1"""
+    """C2f module with SwinTransformer using SwinTransformerV1"""
     def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = False, g: int = 1, e: float = 0.5):
         """
-        Initialize C3 module with SwinTransformerV1.
+        Initialize C2f module with SwinTransformerV1.
 
         Args:
             c1 (int): Input channels.
@@ -469,10 +469,10 @@ class C2fSTRV1(C2f):
             e (float): Expansion ratio.
         """
         super().__init__(c1, c2, n, shortcut, g, e)
-        self.c_ = int(c2 * e)
-        num_heads = self.c_ // 32
-        self.m = SwinTransformerBlock(self.c_, self.c_, num_heads, n)
-        self.cv2 = Conv(3 * self.c_, c2, 1)
+        c_ = int(c2 * e)
+        num_heads = c_ // 32
+        self.m = SwinBlockSequence(c_, c_, num_heads, n)
+        self.cv2 = Conv(3 * c_, c2, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through C2f layer."""
