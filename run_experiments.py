@@ -5,7 +5,7 @@ import os
 
 # === CONFIG ===
 BASE_DIR = Path(__file__).resolve().parent
-CUSTOM_CONFIGS_DIR = BASE_DIR / "ultralytics/cfg/models/v8_costum2"
+CUSTOM_CONFIGS_DIR = BASE_DIR / "ultralytics/cfg/models/v8_costum4"
 SPLITS_DIR = BASE_DIR / "PlantDoc-3" / "splits"
 RESULTS = []
 
@@ -63,7 +63,7 @@ for config_path in config_files:
                 exist_ok=True,
                 verbose=False,
                 batch=16,
-                device="cuda"
+                batch=8,
             )
 
             # === LOAD best.pt ===
@@ -92,7 +92,6 @@ for config_path in config_files:
             results = model.benchmark(
                 imgsz=640,
                 data=data_yaml,
-                device="cuda:0",
                 verbose=True,
                 half=False,
                 format="-",
