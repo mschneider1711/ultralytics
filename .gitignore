@@ -177,3 +177,11 @@ calibration_*.npy
 
 PlantDoc-3/
 PlantDocBackbone/
+review_exports_modular/
+review_exports_reduced/
+review_exports5/
+feature_maps/
+gradcam_maps/
+review_exports6/
+review_exports_modular_025conf/
+review_exports_reduced_025conf/
