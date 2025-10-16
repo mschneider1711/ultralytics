@@ -2,79 +2,80 @@ import torch
 from pathlib import Path
 from ultralytics import YOLO
 
-# ==============================
-# 1) Konfiguration
-# ==============================
-ROOT_DIR  = Path("/Users/marcschneider/Documents/MasterArbeit_Experimente/NEW/backbone_experiments")  # Wurzelordner mit Unterordnern
-DATA_PATH = Path("/Users/marcschneider/Documents/MasterArbeit_Experimente/NEW/PlantDoc-3/splits/split0/data.yaml")  # Pfad zu data.yaml
-FORMAT    = "engine"   # TensorRT
-DEVICE    = 0          # GPU-ID oder "cpu"
-IMGSZ     = 640        # Input-Größe
-VERBOSE   = True        # Detaillierte Benchmark-Ausgabe
+ROOT_DIR  = Path("/Users/marcschneider/Documents/MasterArbeit_Experimente/NEW/backbone_experiments")
+DATA_PATH = Path("/Users/marcschneider/Documents/MasterArbeit_Experimente/NEW/PlantDoc-3/splits/split0/data.yaml")
+FORMATS   = ["-", "torchscript", "engine"]
+DEVICE    = "cuda" if torch.cuda.is_available() else "cpu"
+IMGSZ     = 640
+VERBOSE   = True
 
-# ==============================
-# 2) Funktionen
-# ==============================
+
 def find_best_pt_files(root_dir: Path):
-    """Sucht rekursiv alle 'best.pt'-Dateien."""
     return list(root_dir.rglob("best.pt"))
 
+
 def get_model_name(best_pt_path: Path):
-    """Zwei Ebenen über der Datei."""
     return best_pt_path.parent.parent.name
 
-def run_benchmark(model_path: Path):
-    """Führt Benchmark für FP32 und FP16 aus + misst GPU Speicher."""
-    model_name = get_model_name(model_path)
-    print(f"\n{'=' * 60}")
-    print(f"Benchmark für Modell: {model_name}")
-    print(f"Pfad: {model_path}")
-    print(f"{'=' * 60}")
 
-    model = YOLO(model_path)
+def run_single_benchmark(model: YOLO, model_name: str, fmt: str, half: bool):
+    print(f"\n--- Benchmark: {fmt.upper()} (half={half}) ---")
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
 
-    # === FP32 Benchmark ===
-    print("\n--- TensorRT FP32 ---")
-    torch.cuda.reset_peak_memory_stats()
-    model.benchmark(
-        data=DATA_PATH,
-        format=FORMAT,
-        half=False,
-        device=DEVICE,
-        imgsz=IMGSZ,
-        verbose=VERBOSE
-    )
-    max_mem_fp32 = torch.cuda.max_memory_allocated() / (1024 ** 2)
-    print(f"Max GPU-Speicher (FP32): {max_mem_fp32:.1f} MB")
+        model.benchmark(
+            data=DATA_PATH,
+            format=fmt,
+            half=half,
+            device=DEVICE,
+            imgsz=IMGSZ,
+            verbose=VERBOSE
+        )
 
-    # === FP16 Benchmark ===
-    print("\n--- TensorRT FP16 ---")
-    torch.cuda.reset_peak_memory_stats()
-    model.benchmark(
-        data=DATA_PATH,
-        format=FORMAT,
-        half=True,
-        device=DEVICE,
-        imgsz=IMGSZ,
-        verbose=VERBOSE
-    )
-    max_mem_fp16 = torch.cuda.max_memory_allocated() / (1024 ** 2)
-    print(f"Max GPU-Speicher (FP16): {max_mem_fp16:.1f} MB")
+        if torch.cuda.is_available():
+            max_mem = torch.cuda.max_memory_allocated() / (1024 ** 2)
+            print(f"Max GPU memory: {max_mem:.1f} MB")
 
-# ==============================
-# 3) Hauptprogramm
-# ==============================
+    except Exception as e:
+        print(f"Fehler beim Benchmark ({fmt}, half={half}) für {model_name}: {e}")
+
+
+def run_benchmarks_for_precision(best_models, half: bool):
+    mode = "FP16" if half else "FP32"
+    print(f"\n{'=' * 70}")
+    print(f"Starte {mode}-Benchmarks für alle Modelle")
+    print(f"{'=' * 70}")
+
+    for model_path in best_models:
+        model_name = get_model_name(model_path)
+        print(f"\n{'=' * 70}")
+        print(f"Benchmark für Modell: {model_name} ({mode})")
+        print(f"Pfad: {model_path}")
+        print(f"{'=' * 70}")
+
+        model = YOLO(model_path)
+        for fmt in FORMATS:
+            run_single_benchmark(model, model_name, fmt, half)
+
+
 def main():
     if not torch.cuda.is_available():
-        print("⚠️ Keine GPU erkannt – TensorRT Benchmark wird stark verlangsamt.")
-    best_models = find_best_pt_files(ROOT_DIR)
+        print("Keine GPU erkannt – Benchmarks laufen auf CPU.")
 
+    best_models = find_best_pt_files(ROOT_DIR)
     if not best_models:
-        print("⚠️ Keine 'best.pt'-Dateien gefunden.")
+        print("Keine 'best.pt'-Dateien gefunden.")
         return
 
-    for best_pt in best_models:
-        run_benchmark(best_pt)
+    run_benchmarks_for_precision(best_models, half=False)
+
+    print("\n\n" + "#" * 80)
+    print("###########################  FP16 BENCHMARKS  ###########################")
+    print("#" * 80 + "\n\n")
+
+    run_benchmarks_for_precision(best_models, half=True)
+
 
 if __name__ == "__main__":
     main()
