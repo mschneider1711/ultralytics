@@ -11,7 +11,10 @@ import numpy as np
 
 class AdaptiveAvgPool2dCustom(nn.Module):
     def __init__(self, output_size):
-        super(AdaptiveAvgPool2dCustom, self).__init__()
+        super().__init__()
+        # Immer als Tuple (H, W)
+        if isinstance(output_size, int):
+            output_size = (output_size, output_size)
         self.output_size = np.array(output_size)
 
     def forward(self, x: torch.Tensor):
