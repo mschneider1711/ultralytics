@@ -2,65 +2,139 @@ from pathlib import Path
 from collections import Counter
 import matplotlib.pyplot as plt
 import numpy as np
+import yaml
 
-# === Alle Datasets definieren ===
-dataset_paths = {
-    "run1": Path("/Users/marcschneider/Documents/PlantDoc.v4i.yolov8"),
-    "run2": Path("/Users/marcschneider/Documents/PlantDoc.v4i.yolov8_run2"),
-    "run3": Path("/Users/marcschneider/Documents/PlantDoc.v4i.yolov8_run3"),
+# =========================
+# Konfiguration
+# =========================
+# Beliebig viele Runs eintragen (sprechende Namen → Pfade)
+DATASET_PATHS = {
+    "run1": Path("/Users/marcschneider/Documents/MasterArbeit_Experimente/NEW/PlantDoc-3/splits/split0"),
+    "run2": Path("/Users/marcschneider/Documents/MasterArbeit_Experimente/NEW/PlantDoc-3/splits/split1"),
+    "run3": Path("/Users/marcschneider/Documents/MasterArbeit_Experimente/NEW/PlantDoc-3/splits/split2"),
 }
-splits = ["train"]  # oder auch ["train", "valid", "test"]
 
-# === Klassenlabels (für X-Achse)
-class_names = [
-    'Apple Scab Leaf', 'Apple leaf', 'Apple rust leaf', 'Bell_pepper leaf spot', 'Bell_pepper leaf',
-    'Blueberry leaf', 'Cherry leaf', 'Corn Gray leaf spot', 'Corn leaf blight', 'Corn rust leaf',
-    'Peach leaf', 'Potato leaf early blight', 'Potato leaf late blight', 'Potato leaf',
-    'Raspberry leaf', 'Soyabean leaf', 'Soybean leaf', 'Squash Powdery mildew leaf', 'Strawberry leaf',
-    'Tomato Early blight leaf', 'Tomato Septoria leaf spot', 'Tomato leaf bacterial spot',
-    'Tomato leaf late blight', 'Tomato leaf mosaic virus', 'Tomato leaf yellow virus', 'Tomato leaf',
-    'Tomato mold leaf', 'Tomato two spotted spider mites leaf', 'grape leaf black rot', 'grape leaf'
-]
+# Gewünschter Split: "train", "val" oder "test"
+SELECTED_SPLIT = "val"
 
+# Wo der Plot gespeichert wird
+OUTPUT_DIR = Path("./plots")
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# Schriftgrößen (wie in deinem Original)
+TITLE_SIZE = 18
+AXIS_LABEL_SIZE = 18
+TICK_SIZE = 18
+ANNOT_SIZE = 14
+
+
+# =========================
+# Hilfsfunktionen
+# =========================
+def load_class_names(paths: dict[str, Path]) -> list[str]:
+    """Lade class names aus dem ersten gefundenen data.yaml und prüfe Konsistenz."""
+    first_names = None
+    first_yaml = None
+    for run_name, base_path in paths.items():
+        yaml_path = base_path / "data.yaml"
+        if yaml_path.exists():
+            with open(yaml_path, "r") as f:
+                data = yaml.safe_load(f)
+                names = data.get("names", [])
+            if first_names is None:
+                first_names = names
+                first_yaml = yaml_path
+            else:
+                if names != first_names:
+                    print(f"[Warnung] Klasseninkonsistenz zwischen {first_yaml} und {yaml_path}. "
+                          f"Der Plot verwendet die Klassen aus {first_yaml}.")
+            print(f"Loaded classes from {yaml_path}")
+    if first_names is None:
+        raise FileNotFoundError("Keine data.yaml in den angegebenen Runs gefunden!")
+    return first_names
+
+
+def count_instances_for_split(base_path: Path, split: str, num_classes: int) -> list[int]:
+    """Zähle Instanzen (Zeilen in *.txt-Labeldateien) je Klasse für einen Split."""
+    label_dir = base_path / split / "labels"
+    class_counts = Counter()
+    if not label_dir.is_dir():
+        print(f"[Info] Kein Labels-Ordner gefunden: {label_dir}")
+        return [0] * num_classes
+
+    for label_file in label_dir.glob("*.txt"):
+        with open(label_file, "r") as f:
+            for line in f:
+                s = line.strip()
+                if not s:
+                    continue
+                parts = s.split()
+                try:
+                    class_id = int(parts[0])
+                except Exception:
+                    continue
+                if 0 <= class_id < num_classes:
+                    class_counts[class_id] += 1
+
+    return [class_counts[i] for i in range(num_classes)]
+
+
+# =========================
+# Klassen laden
+# =========================
+class_names = load_class_names(DATASET_PATHS)
 num_classes = len(class_names)
 x = np.arange(num_classes)
-width = 0.25  # Breite der Balken
 
-# === Klassen zählen pro Dataset
+# =========================
+# Zählen pro Run (ausgewählter Split)
+# =========================
+runs = list(DATASET_PATHS.keys())
 counts_per_run = {}
+totals = {}
 
-for run_name, dataset_path in dataset_paths.items():
-    class_counts = Counter()
-    for split in splits:
-        label_dir = dataset_path / split / "labels"
-        for label_file in label_dir.glob("*.txt"):
-            with open(label_file, "r") as f:
-                for line in f:
-                    if line.strip():
-                        class_id = int(line.strip().split()[0])
-                        class_counts[class_id] += 1
-    counts = [class_counts[i] for i in range(num_classes)]
-    total = sum(counts)
-    print(f"🔢 Gesamtanzahl Instanzen in {run_name} ({', '.join(splits)}): {total}")
+for run_name, base_path in DATASET_PATHS.items():
+    counts = count_instances_for_split(base_path, SELECTED_SPLIT, num_classes)
     counts_per_run[run_name] = counts
+    totals[run_name] = sum(counts)
+    print(f"Total instances in {run_name} – {SELECTED_SPLIT}: {totals[run_name]}")
 
-# === Plot
-plt.figure(figsize=(18, 6))
-for idx, (run_name, counts) in enumerate(counts_per_run.items()):
-    offset = idx * width - width  # zentrieren
-    plt.bar(x + offset, counts, width=width, label=run_name)
+# =========================
+# Plot (alle Runs in einem Diagramm)
+# =========================
+n_runs = len(runs)
+width = 0.9 / max(n_runs, 1)  # Gruppierte Balken, 90% der Breite
+plt.figure(figsize=(21, 9))
 
-# Zahlen optional über Balken schreiben
-for idx, (run_name, counts) in enumerate(counts_per_run.items()):
-    offset = idx * width - width
-    for i, count in enumerate(counts):
+for idx, run_name in enumerate(runs):
+    counts = counts_per_run[run_name]
+    offset = (idx - (n_runs - 1) / 2) * width
+    bars = plt.bar(x + offset, counts, width=width, label=run_name)
+
+    # Werte in die Balken schreiben
+    for rect, count in zip(bars, counts):
         if count > 0:
-            plt.text(x[i] + offset, count + 1, str(count), ha='center', va='bottom', fontsize=7, rotation=90)
+            plt.text(
+                rect.get_x() + rect.get_width() / 2,
+                rect.get_height() / 2,
+                str(count),
+                ha="center",
+                va="center",
+                fontsize=ANNOT_SIZE,
+                rotation=90,
+                color="white",
+            )
 
-plt.xticks(x, class_names, rotation=90)
-plt.xlabel("Klassen")
-plt.ylabel("Anzahl Instanzen")
-plt.title("📊 Klassenverteilung – Vergleich run1, run2, run3")
-plt.legend()
+plt.xticks(x, class_names, rotation=90, fontsize=TICK_SIZE)
+plt.xlabel("Classes", fontsize=AXIS_LABEL_SIZE)
+plt.ylabel("Number of instances", fontsize=AXIS_LABEL_SIZE)
+#plt.title(f"Class distribution – {SELECTED_SPLIT}", fontsize=TITLE_SIZE)
+plt.yticks(fontsize=TICK_SIZE)
+plt.grid(True, axis="y", linestyle="--", alpha=0.3)
+plt.legend(title="Runs", frameon=False, fontsize=AXIS_LABEL_SIZE, title_fontsize=AXIS_LABEL_SIZE)
+
+out_path = OUTPUT_DIR / f"class_distribution_{SELECTED_SPLIT}_all_runs.png"
 plt.tight_layout()
+plt.savefig(out_path, dpi=200, bbox_inches="tight")
 plt.show()
+print(f"Saved: {out_path}")
