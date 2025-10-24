@@ -7,7 +7,7 @@ from roboflow import Roboflow
 from sklearn.model_selection import StratifiedShuffleSplit
 
 # === CONFIGURATION ===
-API_KEY = "UAKZhKjdRo7DK00tJJfB"
+API_KEY = ""
 WORKSPACE = "joseph-nelson"
 PROJECT = "plantdoc"
 VERSION = 3
